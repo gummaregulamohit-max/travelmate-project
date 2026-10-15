@@ -1,0 +1,50 @@
+# Node.js dependencies
+node_modules/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build and test output
+dist/
+build/
+coverage/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Editor settings
+.vscode/
+
+# Personal / portfolio media (kept on disk, never uploaded)
+Documents/
+Images/
+Videos/
+
+# Source documents and media, by extension, wherever they are saved.
+# (Station data the backend needs is bundled as JSON in travelmate-backend/src/data/.)
+# PDFs
+*.pdf
+# Spreadsheets
+*.xlsx
+*.xls
+*.xlsm
+*.ods
+# Videos
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.wmv
+*.m4v
+# Presentations
+*.pptx
+*.ppt
+*.odp

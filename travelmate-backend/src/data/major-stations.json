@@ -1,0 +1,324 @@
+[
+  {
+    "category": "Metropolitan Hub",
+    "name": "New Delhi",
+    "code": "NDLS",
+    "city": "New Delhi",
+    "state": "Delhi"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Delhi Junction (Old Delhi)",
+    "code": "DLI",
+    "city": "Delhi",
+    "state": "Delhi"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Hazrat Nizamuddin",
+    "code": "NZM",
+    "city": "New Delhi",
+    "state": "Delhi"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Anand Vihar Terminal",
+    "code": "ANVT",
+    "city": "Delhi",
+    "state": "Delhi"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Chhatrapati Shivaji Maharaj Terminus",
+    "code": "CSMT",
+    "city": "Mumbai",
+    "state": "Maharashtra"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Mumbai Central",
+    "code": "MMCT",
+    "city": "Mumbai",
+    "state": "Maharashtra"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Bandra Terminus",
+    "code": "BDTS",
+    "city": "Mumbai",
+    "state": "Maharashtra"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Lokmanya Tilak Terminus",
+    "code": "LTT",
+    "city": "Mumbai",
+    "state": "Maharashtra"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Howrah Junction",
+    "code": "HWH",
+    "city": "Kolkata / Howrah",
+    "state": "West Bengal"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Sealdah",
+    "code": "SDAH",
+    "city": "Kolkata",
+    "state": "West Bengal"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Kolkata (Chitpur)",
+    "code": "KOAA",
+    "city": "Kolkata",
+    "state": "West Bengal"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Shalimar",
+    "code": "SHM",
+    "city": "Kolkata / Howrah",
+    "state": "West Bengal"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Puratchi Thalaivar Dr. MGR Central",
+    "code": "MAS",
+    "city": "Chennai",
+    "state": "Tamil Nadu"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Chennai Egmore",
+    "code": "MS",
+    "city": "Chennai",
+    "state": "Tamil Nadu"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "KSR Bengaluru City Junction",
+    "code": "SBC",
+    "city": "Bengaluru",
+    "state": "Karnataka"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Yesvantpur Junction",
+    "code": "YPR",
+    "city": "Bengaluru",
+    "state": "Karnataka"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "SMVT Bengaluru",
+    "code": "SMVB",
+    "city": "Bengaluru",
+    "state": "Karnataka"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Secunderabad Junction",
+    "code": "SC",
+    "city": "Hyderabad / Secunderabad",
+    "state": "Telangana"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Hyderabad Deccan (Nampally)",
+    "code": "HYB",
+    "city": "Hyderabad",
+    "state": "Telangana"
+  },
+  {
+    "category": "Metropolitan Hub",
+    "name": "Kacheguda",
+    "code": "KCG",
+    "city": "Hyderabad",
+    "state": "Telangana"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Agra Cantonment",
+    "code": "AGC",
+    "city": "Agra",
+    "state": "Uttar Pradesh"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Ahmedabad Junction",
+    "code": "ADI",
+    "city": "Ahmedabad",
+    "state": "Gujarat"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Amritsar Junction",
+    "code": "ASR",
+    "city": "Amritsar",
+    "state": "Punjab"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Bhopal Junction",
+    "code": "BPL",
+    "city": "Bhopal",
+    "state": "Madhya Pradesh"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Bhubaneswar",
+    "code": "BBS",
+    "city": "Bhubaneswar",
+    "state": "Odisha"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Chandigarh Junction",
+    "code": "CDG",
+    "city": "Chandigarh",
+    "state": "Chandigarh (UT)"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Coimbatore Junction",
+    "code": "CBE",
+    "city": "Coimbatore",
+    "state": "Tamil Nadu"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Ernakulam Junction (South)",
+    "code": "ERS",
+    "city": "Kochi",
+    "state": "Kerala"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Guwahati",
+    "code": "GHY",
+    "city": "Guwahati",
+    "state": "Assam"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Gwalior Junction",
+    "code": "GWL",
+    "city": "Gwalior",
+    "state": "Madhya Pradesh"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Jaipur Junction",
+    "code": "JP",
+    "city": "Jaipur",
+    "state": "Rajasthan"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Kanpur Central",
+    "code": "CNB",
+    "city": "Kanpur",
+    "state": "Uttar Pradesh"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Lucknow Charbagh",
+    "code": "LKO",
+    "city": "Lucknow",
+    "state": "Uttar Pradesh"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Madurai Junction",
+    "code": "MDU",
+    "city": "Madurai",
+    "state": "Tamil Nadu"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Nagpur Junction",
+    "code": "NGP",
+    "city": "Nagpur",
+    "state": "Maharashtra"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Patna Junction",
+    "code": "PNBE",
+    "city": "Patna",
+    "state": "Bihar"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Prayagraj Junction",
+    "code": "PRYJ",
+    "city": "Prayagraj",
+    "state": "Uttar Pradesh"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Pune Junction",
+    "code": "PUNE",
+    "city": "Pune",
+    "state": "Maharashtra"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Raipur Junction",
+    "code": "R",
+    "city": "Raipur",
+    "state": "Chhattisgarh"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Ranchi Junction",
+    "code": "RNC",
+    "city": "Ranchi",
+    "state": "Jharkhand"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Surat",
+    "code": "ST",
+    "city": "Surat",
+    "state": "Gujarat"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Thiruvananthapuram Central",
+    "code": "TVC",
+    "city": "Thiruvananthapuram",
+    "state": "Kerala"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Vadodara Junction",
+    "code": "BRC",
+    "city": "Vadodara",
+    "state": "Gujarat"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Varanasi Junction",
+    "code": "BSB",
+    "city": "Varanasi",
+    "state": "Uttar Pradesh"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Vijayawada Junction",
+    "code": "BZA",
+    "city": "Vijayawada",
+    "state": "Andhra Pradesh"
+  },
+  {
+    "category": "Regional Hub / Junction",
+    "name": "Visakhapatnam Junction",
+    "code": "VSKP",
+    "city": "Visakhapatnam",
+    "state": "Andhra Pradesh"
+  }
+]
