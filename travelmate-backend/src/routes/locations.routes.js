@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { searchLocations, determineTripType, directoryStats } = require('../services/locations.service');
+const { queryString, parseLimit } = require('../utils/requestNormalizers');
 
 /**
  * GET /api/locations/search?q=<text>&limit=<n>&country=<name>&trip=<type>
@@ -26,15 +27,15 @@ const { searchLocations, determineTripType, directoryStats } = require('../servi
  * `title` / `subtitle` are what a suggestion displays; `name` is the unique
  * place name a search uses.
  *
- * `limit` defaults to 20 (max 100). `country` (optional) keeps results to one
+ * `limit` defaults to 20 (1..100). `country` (optional) keeps results to one
  * country. `trip=international` keeps only places with an airport and returns
  * only their airports — trains and buses don't apply to an international trip.
  */
 router.get('/search', (req, res, next) => {
   try {
-    const query = typeof req.query.q === 'string' ? req.query.q : '';
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
-    const country = typeof req.query.country === 'string' && req.query.country.trim() ? req.query.country.trim() : undefined;
+    const query = queryString(req.query.q);
+    const limit = parseLimit(req.query.limit);
+    const country = queryString(req.query.country) || undefined;
     const trip = req.query.trip === 'international' ? 'international' : undefined;
     const results = searchLocations(query, { limit, country, trip });
     res.json({ results, meta: { query, count: results.length } });
@@ -60,8 +61,8 @@ router.get('/search', (req, res, next) => {
  */
 router.get('/trip-type', (req, res, next) => {
   try {
-    const from = typeof req.query.from === 'string' ? req.query.from.trim() : '';
-    const to = typeof req.query.to === 'string' ? req.query.to.trim() : '';
+    const from = queryString(req.query.from);
+    const to = queryString(req.query.to);
     if (!from || !to) {
       return res.status(400).json({ error: { message: 'Both "from" and "to" are required.', status: 400 } });
     }

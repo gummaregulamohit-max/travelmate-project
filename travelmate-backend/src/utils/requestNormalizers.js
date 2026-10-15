@@ -59,4 +59,24 @@ function extractStationCode(input) {
   return null;
 }
 
-module.exports = { normalizeDateToISO, extractIataCode, extractStationCode };
+/**
+ * A single query-string value as a trimmed string. Express turns a repeated
+ * parameter (?q=a&q=b) into an array and ?q[x]=1 into an object; a repeated
+ * parameter uses its first value, anything else that isn't a string is ''.
+ */
+function queryString(value) {
+  if (Array.isArray(value)) value = value[0];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/**
+ * A result-count limit. A whole number is clamped to 1..max (so 0 and
+ * negatives give 1); a missing or non-numeric value gives `fallback`.
+ */
+function parseLimit(value, { fallback = 20, max = 100 } = {}) {
+  const text = queryString(value);
+  if (!/^-?\d+$/.test(text)) return fallback;
+  return Math.min(Math.max(parseInt(text, 10), 1), max);
+}
+
+module.exports = { normalizeDateToISO, extractIataCode, extractStationCode, queryString, parseLimit };

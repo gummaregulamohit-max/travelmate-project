@@ -7,7 +7,7 @@ const { searchLiveTrains, fetchTrainsBetweenStations, fetchSeatAvailability, der
 const { estimateClassFare } = require('../utils/mockTrainGenerator');
 const { findKnownTrains } = require('../data/knownTrainRoutes');
 const { fetchErailTrains, fetchTrainSchedule } = require('../services/erail.service');
-const { normalizeDateToISO, extractStationCode } = require('../utils/requestNormalizers');
+const { normalizeDateToISO, extractStationCode, queryString, parseLimit } = require('../utils/requestNormalizers');
 const { getCached, setCached } = require('../services/cache.service');
 
 function stationLabel(code) {
@@ -76,15 +76,19 @@ function fillMissingClasses(train) {
 }
 
 /**
- * GET /api/trains/stations?q=<query>
+ * GET /api/trains/stations?q=<query>&limit=<n>
  * Case-insensitive substring search over station name or code. Backs live
- * autocomplete on the Trains tab — an empty/missing q returns the full directory.
+ * autocomplete on the Trains tab. An empty/missing q returns no results, like
+ * /api/locations/search. `limit` defaults to 20 (1..100); meta.total is the
+ * number of matches before the limit.
  */
 router.get('/stations', (req, res, next) => {
   try {
-    const query = typeof req.query.q === 'string' ? req.query.q : '';
-    const results = searchStations(query).map(({ name, code, city, state }) => ({ name, code, city, state }));
-    res.json({ results, meta: { query, count: results.length } });
+    const query = queryString(req.query.q);
+    const limit = parseLimit(req.query.limit);
+    const matches = query ? searchStations(query) : [];
+    const results = matches.slice(0, limit).map(({ name, code, city, state }) => ({ name, code, city, state }));
+    res.json({ results, meta: { query, count: results.length, total: matches.length } });
   } catch (err) {
     next(err);
   }
