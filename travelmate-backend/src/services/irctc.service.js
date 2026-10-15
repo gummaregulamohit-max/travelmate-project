@@ -1,18 +1,25 @@
 // Live Indian Railways train data via the "Indian Railway IRCTC" API on
-// RapidAPI (https://rapidapi.com/rahilkhan224/api/indian-railway-irctc).
-// Requires RAPIDAPI_KEY in .env — see .env.example.
+// RapidAPI (https://rapidapi.com/rahilkhan224/api/indian-railway-irctc) —
+// the primary train data provider. Requires RAPIDAPI_KEY in .env — see
+// .env.example.
 //
-// This API has no "trains between stations" or fare/seat-availability
-// endpoint — only train-by-number (full IRCTC schedule) and live running
-// status. So a route search is built in two steps:
+// Endpoint used (host and response shape confirmed with live requests):
+//   GET https://indian-railway-irctc.p.rapidapi.com/api/trains-search/v1/train/{trainNo}?isH5=true&client=web
+//   -> { body: [{ trains: [{ trainNumber, trainName, stationFrom, stationTo,
+//        runningOn: "NNYNYNN" (Sun..Sat at the origin), journeyClasses,
+//        schedule: [{ stationCode, stationName, arrivalTime, departureTime,
+//        haltTime "MM:SS", distance, dayCount, routeNumber }] }] }] }
+// It has no "trains between stations" or fare/seat-availability endpoint,
+// so a route search is built in two steps:
 //   1. The candidate trains for the route come from the public timetable
 //      (erail.service.js), with its fare-chart prices.
-//   2. Up to MAX_LOOKUPS_PER_SEARCH of them are verified against IRCTC via
-//      GET /api/trains-search/v1/train/{trainNo}, replacing the timings with
-//      IRCTC's own departure/arrival at the searched stations.
+//   2. Up to MAX_LOOKUPS_PER_SEARCH of them are verified against IRCTC,
+//      replacing the timings and running days with IRCTC's own at the
+//      searched stations (and dropping trains IRCTC says don't run that day).
 // The free BASIC plan allows only 50 calls a month, so each train's details
 // are cached for DETAILS_TTL_MS (schedules rarely change) and a 429 stops all
-// further lookups for that search.
+// further lookups for that search. The API occasionally answers 200 with no
+// train in the body, so an empty answer is only cached for EMPTY_TTL_MS.
 
 const axios = require('axios');
 
@@ -20,9 +27,39 @@ const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'indian-railway-irctc.p.rapid
 const BASE_URL = `https://${RAPIDAPI_HOST}`;
 const REQUEST_TIMEOUT_MS = 12000;
 
-const MAX_LOOKUPS_PER_SEARCH = Number(process.env.TRAIN_API_MAX_LOOKUPS_PER_SEARCH) || 3;
+// How many uncached IRCTC lookups one route search may spend, from
+// TRAIN_API_MAX_LOOKUPS_PER_SEARCH:
+//   unset / blank        -> DEFAULT_LOOKUPS_PER_SEARCH
+//   0                    -> none: searches use the timetable plus any IRCTC
+//                           details already cached (schedule pop-ups still
+//                           call IRCTC — they are one request each)
+//   1..MAX_LOOKUPS_LIMIT -> that many
+//   above the limit      -> MAX_LOOKUPS_LIMIT, with a warning
+//   anything else        -> DEFAULT_LOOKUPS_PER_SEARCH, with a warning
+const DEFAULT_LOOKUPS_PER_SEARCH = 3;
+const MAX_LOOKUPS_LIMIT = 10;
+
+function parseMaxLookups(raw) {
+  const text = raw == null ? '' : String(raw).trim();
+  if (text === '') return DEFAULT_LOOKUPS_PER_SEARCH;
+  if (!/^\d+$/.test(text)) {
+    console.warn(`[trains] TRAIN_API_MAX_LOOKUPS_PER_SEARCH="${text}" is not a whole number — using ${DEFAULT_LOOKUPS_PER_SEARCH}.`);
+    return DEFAULT_LOOKUPS_PER_SEARCH;
+  }
+  const value = parseInt(text, 10);
+  if (value > MAX_LOOKUPS_LIMIT) {
+    console.warn(`[trains] TRAIN_API_MAX_LOOKUPS_PER_SEARCH=${value} is above ${MAX_LOOKUPS_LIMIT} — using ${MAX_LOOKUPS_LIMIT} to protect the monthly quota.`);
+    return MAX_LOOKUPS_LIMIT;
+  }
+  return value;
+}
+
+const MAX_LOOKUPS_PER_SEARCH = parseMaxLookups(process.env.TRAIN_API_MAX_LOOKUPS_PER_SEARCH);
 const DETAILS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const EMPTY_TTL_MS = 60 * 60 * 1000;
 const detailsCache = new Map();
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 class IrctcApiError extends Error {
   constructor(message, status, details) {
@@ -65,6 +102,20 @@ function deriveTrainType(trainName) {
   return 'Express';
 }
 
+// `runs`: 7 booleans, Sunday first (Date#getUTCDay order).
+function describeDays(runs) {
+  if (!Array.isArray(runs) || runs.length !== 7 || runs.every(Boolean) || !runs.some(Boolean)) return 'Runs Daily';
+  return `Runs on ${DAY_LABELS.filter((_, i) => runs[i]).join(', ')}`;
+}
+
+// IRCTC's runningOn ("NNYNYNN", Sun..Sat, at the origin) shifted to a stop
+// reached on day `dayCount` of the journey. null when runningOn is malformed.
+function runningDaysAt(runningOn, dayCount) {
+  if (!/^[YN]{7}$/.test(runningOn || '')) return null;
+  const shift = (parseInt(dayCount, 10) || 1) - 1;
+  return Array.from({ length: 7 }, (_, i) => runningOn[(((i - shift) % 7) + 7) % 7] === 'Y');
+}
+
 // "09:15" -> minutes after midnight; "--" (no arrival/departure) -> null
 function clockMinutes(raw) {
   const m = /^(\d{1,2}):(\d{2})/.exec(raw || '');
@@ -84,24 +135,30 @@ function codeFromLabel(label) {
 /**
  * IRCTC details for one train: { trainNumber, trainName, journeyClasses, schedule[] }.
  * Served from a week-long cache when possible — each uncached call spends one
- * of the plan's 50 monthly requests.
+ * of the plan's 50 monthly requests. The API intermittently answers a valid
+ * train number with a successful but empty `trains: []` that an immediate
+ * retry fills in, so an empty answer is retried once (a second request).
  */
 async function fetchTrainDetails(trainNumber) {
   const cached = detailsCache.get(trainNumber);
   if (cached && Date.now() < cached.expiresAt) return cached.value;
 
   try {
-    const response = await axios.get(`${BASE_URL}/api/trains-search/v1/train/${encodeURIComponent(trainNumber)}`, {
-      params: { isH5: true, client: 'web' },
-      headers: headers(),
-      timeout: REQUEST_TIMEOUT_MS
-    });
-    const remaining = response.headers['x-ratelimit-requests-remaining'];
-    if (remaining != null) console.log(`[trains] Indian Railway IRCTC API: ${remaining} requests left this period.`);
+    let value = null;
+    for (let attempt = 1; attempt <= 2 && !value; attempt++) {
+      const response = await axios.get(`${BASE_URL}/api/trains-search/v1/train/${encodeURIComponent(trainNumber)}`, {
+        params: { isH5: true, client: 'web' },
+        headers: headers(),
+        timeout: REQUEST_TIMEOUT_MS
+      });
+      const remaining = response.headers['x-ratelimit-requests-remaining'];
+      if (remaining != null) console.log(`[trains] Indian Railway IRCTC API: ${remaining} requests left this period.`);
 
-    const train = response.data?.body?.[0]?.trains?.[0];
-    const value = train && Array.isArray(train.schedule) ? train : null;
-    detailsCache.set(trainNumber, { value, expiresAt: Date.now() + DETAILS_TTL_MS });
+      const train = response.data?.body?.[0]?.trains?.[0];
+      value = train && Array.isArray(train.schedule) && train.schedule.length ? train : null;
+      if (!value) console.warn(`[trains] Indian Railway IRCTC API returned no train for ${trainNumber} (attempt ${attempt} of 2).`);
+    }
+    detailsCache.set(trainNumber, { value, expiresAt: Date.now() + (value ? DETAILS_TTL_MS : EMPTY_TTL_MS) });
     return value;
   } catch (err) {
     throw asIrctcError(err, `Failed to fetch train ${trainNumber} from the live IRCTC API.`);
@@ -113,9 +170,11 @@ function cachedTrainDetails(trainNumber) {
   return cached && Date.now() < cached.expiresAt ? cached.value : undefined;
 }
 
-// Overlays IRCTC's own timings at the boarding/alighting stations onto a
-// timetable train. Returns null if the train doesn't serve that pair in order.
-function applyLiveSchedule(train, details) {
+// Overlays IRCTC's own timings and running days at the boarding/alighting
+// stations onto a timetable train, plus `runsOnDate` (false when IRCTC says it
+// doesn't leave the boarding station on `date`). Returns null if the train
+// doesn't serve that pair in order.
+function applyLiveSchedule(train, details, date) {
   const fromCode = codeFromLabel(train.fromStation);
   const toCode = codeFromLabel(train.toStation);
   const stops = details.schedule;
@@ -131,6 +190,8 @@ function applyLiveSchedule(train, details) {
   const durationMinutes = dayDiff * 1440 + arr - dep;
   if (durationMinutes <= 0) return null;
   const extraDays = Math.floor((dep + durationMinutes) / 1440);
+  const runs = runningDaysAt(details.runningOn, stops[fromIdx].dayCount);
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
 
   return {
     ...train,
@@ -139,7 +200,46 @@ function applyLiveSchedule(train, details) {
     departureTime: hhmm(dep),
     arrivalTime: extraDays > 0 ? `${hhmm(arr)} (+${extraDays})` : hhmm(arr),
     durationMinutes,
-    duration: `${Math.floor(durationMinutes / 60)}h ${String(durationMinutes % 60).padStart(2, '0')}m`
+    duration: `${Math.floor(durationMinutes / 60)}h ${String(durationMinutes % 60).padStart(2, '0')}m`,
+    days: runs ? describeDays(runs) : train.days,
+    runsOnDate: runs && !Number.isNaN(weekday) ? runs[weekday] : true
+  };
+}
+
+/**
+ * Every stop of one train from IRCTC, in the same shape as
+ * erail.service.fetchTrainSchedule (backs GET /api/trains/schedule).
+ * null when IRCTC returns no train for that number.
+ */
+async function fetchIrctcSchedule(trainNumber) {
+  const details = await fetchTrainDetails(trainNumber);
+  if (!details) return null;
+  const stops = details.schedule.map((s) => {
+    const arrival = clockMinutes(s.arrivalTime);
+    const departure = clockMinutes(s.departureTime);
+    const halt = /^(\d+):\d{2}$/.exec(s.haltTime || '');
+    return {
+      code: s.stationCode,
+      name: s.stationName,
+      routeNumber: parseInt(s.routeNumber, 10) || 1,
+      arrival: arrival == null ? null : hhmm(arrival),
+      departure: departure == null ? null : hhmm(departure),
+      halt: halt && arrival != null && departure != null ? parseInt(halt[1], 10) : null,
+      distance: /^\d+$/.test(s.distance) ? parseInt(s.distance, 10) : null,
+      day: parseInt(s.dayCount, 10) || 1
+    };
+  });
+  const first = details.schedule[0];
+  const last = details.schedule[details.schedule.length - 1];
+  return {
+    train: {
+      number: details.trainNumber || trainNumber,
+      name: details.trainName || '',
+      fromCode: details.stationFrom || first.stationCode, fromName: first.stationName,
+      toCode: details.stationTo || last.stationCode, toName: last.stationName,
+      days: describeDays(runningDaysAt(details.runningOn, 1))
+    },
+    stops
   };
 }
 
@@ -175,7 +275,9 @@ async function fetchTrainsBetweenStations(fromCode, toCode, date, fromLabel, toL
         console.warn(`[trains] Live lookup for train ${train.trainNumber} failed:`, err.message);
       }
     }
-    const verified = details ? applyLiveSchedule(train, details) : null;
+    const verified = details ? applyLiveSchedule(train, details, date) : null;
+    if (verified && !verified.runsOnDate) continue;
+    if (verified) delete verified.runsOnDate;
     trains.push({
       ...(verified || train),
       classesAvailable: train.classes.map((c) => c.cls),
@@ -202,4 +304,16 @@ async function searchLiveTrains({ fromCode, toCode, date, fromLabel, toLabel }) 
   return fetchTrainsBetweenStations(fromCode, toCode, date, fromLabel, toLabel, { maxLookups: MAX_LOOKUPS_PER_SEARCH });
 }
 
-module.exports = { searchLiveTrains, fetchTrainsBetweenStations, fetchTrainDetails, fetchSeatAvailability, IrctcApiError, deriveTrainType };
+module.exports = {
+  searchLiveTrains,
+  fetchTrainsBetweenStations,
+  fetchTrainDetails,
+  fetchIrctcSchedule,
+  fetchSeatAvailability,
+  IrctcApiError,
+  deriveTrainType,
+  describeDays,
+  runningDaysAt,
+  parseMaxLookups,
+  MAX_LOOKUPS_PER_SEARCH
+};

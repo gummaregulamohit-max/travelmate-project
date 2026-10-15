@@ -349,6 +349,9 @@
   .avl-available { color: #27ae60; }
   .avl-rac { color: #e67e22; }
   .avl-wl { color: #e74c3c; }
+  .avl-unknown { color: #888; }
+  .train-source { color: #888; font-size: 0.72rem; margin-top: 4px; }
+  .train-source-live, .train-source-live-schedule { color: #1a5f7a; font-weight: 600; }
 
   /* RedBus-style results bar */
   .results-summary {
@@ -1334,9 +1337,13 @@
             </div>
             <div class="filter-section-body">
               <div class="filter-checkbox-grid">
+                <!-- Every class /api/trains/search can return (backend erail.service CLASS_SLOTS). -->
                 <label class="filter-check-row"><input type="checkbox" checked value="1A"> AC First Class (1A)</label>
                 <label class="filter-check-row"><input type="checkbox" checked value="2A"> AC 2 Tier (2A)</label>
                 <label class="filter-check-row"><input type="checkbox" checked value="3A"> AC 3 Tier (3A)</label>
+                <label class="filter-check-row"><input type="checkbox" checked value="3E"> AC 3 Economy (3E)</label>
+                <label class="filter-check-row"><input type="checkbox" checked value="EC"> Exec. Chair Car (EC)</label>
+                <label class="filter-check-row"><input type="checkbox" checked value="CC"> AC Chair Car (CC)</label>
                 <label class="filter-check-row"><input type="checkbox" checked value="SL"> Sleeper (SL)</label>
               </div>
             </div>
@@ -1652,9 +1659,10 @@
             <input type="radio" name="trainTripType" value="oneway" checked>
             One-Way Journey
           </label>
-          <label>
-            <input type="radio" name="trainTripType" value="roundtrip">
-            Round-Trip
+          <!-- Disabled until return-journey search is supported: /api/trains/search is one-way only. -->
+          <label style="opacity:0.55;cursor:not-allowed;" title="Round-trip train search isn't available yet — search each direction as a one-way journey.">
+            <input type="radio" name="trainTripType" value="roundtrip" disabled>
+            Round-Trip (coming soon)
           </label>
         </div>
 
@@ -1689,7 +1697,7 @@
         <div id="trainResults" class="results-container hidden">
           <div class="results-header-row">
             <h4>Available Trains</h4>
-            <span class="powered-by-badge">Powered by <strong>IRCTC</strong></span>
+            <span class="powered-by-badge" id="trainSourceBadge">Powered by <strong>IRCTC</strong></span>
           </div>
           <div id="trainResultsList"></div>
         </div>
@@ -1986,166 +1994,259 @@
     }
   }
 
-  // Real IRCTC train data for a handful of popular routes (verified: train numbers,
-  // names, departure/arrival times, and classes match the actual services).
-  // Fares shown are illustrative estimates for this demo, not live IRCTC pricing.
-  //
-  // IMPORTANT: keyed by STATION CODE pairs ("FROMCODE->TOCODE"), not city names.
-  // Two different stations in the same city (e.g. SBC and YPR are both "Bengaluru")
-  // are genuinely different origins/destinations on IRCTC, so the lookup key has to
-  // reflect the exact station the passenger picked, not the city it happens to sit in.
-  const trainRoutes = {
-    'NDLS->MMCT': [
-      { number: '12952', name: 'Mumbai Central Rajdhani Express', dep: '16:55', arr: '08:35 (+1)', duration: '15h 40m', days: 'Runs Daily',
-        classes: [
-          { cls: '1A', fare: 5195, status: 'Available', tier: 'available' },
-          { cls: '2A', fare: 3080, status: 'Available', tier: 'available' },
-          { cls: '3A', fare: 2190, status: 'RAC 8', tier: 'rac' }
-        ] }
-    ],
-    'NZM->MMCT': [
-      { number: '12954', name: 'August Kranti Rajdhani Express', dep: '17:15', arr: '10:05 (+1)', duration: '16h 50m', days: 'Runs Daily',
-        classes: [
-          { cls: '1A', fare: 5350, status: 'Available', tier: 'available' },
-          { cls: '2A', fare: 3145, status: 'WL 3', tier: 'wl' },
-          { cls: '3A', fare: 2230, status: 'Available', tier: 'available' }
-        ] }
-    ],
-    'MMCT->NDLS': [
-      { number: '12951', name: 'Mumbai Rajdhani Express', dep: '17:00', arr: '08:35 (+1)', duration: '15h 35m', days: 'Runs Daily',
-        classes: [
-          { cls: '1A', fare: 5195, status: 'Available', tier: 'available' },
-          { cls: '2A', fare: 3080, status: 'RAC 6', tier: 'rac' },
-          { cls: '3A', fare: 2190, status: 'Available', tier: 'available' }
-        ] }
-    ],
-    'MMCT->NZM': [
-      { number: '12953', name: 'August Kranti Rajdhani Express', dep: '17:10', arr: '09:43 (+1)', duration: '16h 33m', days: 'Runs Daily',
-        classes: [
-          { cls: '1A', fare: 5350, status: 'Available', tier: 'available' },
-          { cls: '2A', fare: 3145, status: 'Available', tier: 'available' },
-          { cls: '3A', fare: 2230, status: 'WL 5', tier: 'wl' }
-        ] }
-    ],
-    'SBC->MAS': [
-      { number: '12028', name: 'Chennai Central Shatabdi Express', dep: '06:00', arr: '11:00', duration: '5h 00m', days: 'Runs 6 days a week (except Tue)',
-        classes: [
-          { cls: 'CC', fare: 875, status: 'Available', tier: 'available' },
-          { cls: 'EC', fare: 1640, status: 'Available', tier: 'available' }
-        ] }
-    ],
-    'MAS->SBC': [
-      { number: '12027', name: 'KSR Bengaluru Shatabdi Express', dep: '17:30', arr: '22:25', duration: '4h 55m', days: 'Runs 6 days a week (except Tue)',
-        classes: [
-          { cls: 'CC', fare: 875, status: 'Available', tier: 'available' },
-          { cls: 'EC', fare: 1640, status: 'RAC 4', tier: 'rac' }
-        ] }
-    ],
-    'SBC->NZM': [
-      { number: '22691', name: 'KSR Bengaluru - Hazrat Nizamuddin Rajdhani Express', dep: '20:00', arr: '05:30 (+2)', duration: '33h 30m', days: 'Runs Daily',
-        classes: [
-          { cls: '1A', fare: 6480, status: 'Available', tier: 'available' },
-          { cls: '2A', fare: 3820, status: 'WL 2', tier: 'wl' },
-          { cls: '3A', fare: 2705, status: 'Available', tier: 'available' }
-        ] }
-    ],
-    'NZM->SBC': [
-      { number: '22692', name: 'Hazrat Nizamuddin - KSR Bengaluru Rajdhani Express', dep: '20:50', arr: '06:35 (+2)', duration: '33h 45m', days: 'Runs Daily',
-        classes: [
-          { cls: '1A', fare: 6480, status: 'Available', tier: 'available' },
-          { cls: '2A', fare: 3820, status: 'Available', tier: 'available' },
-          { cls: '3A', fare: 2705, status: 'RAC 10', tier: 'rac' }
-        ] }
-    ],
-    'SBC->KCG': [
-      { number: '12786', name: 'Kacheguda Express', dep: '18:00', arr: '05:40 (+1)', duration: '11h 40m', days: 'Runs Daily',
-        classes: [
-          { cls: 'SL', fare: 395, status: 'Available', tier: 'available' },
-          { cls: 'CC', fare: 780, status: 'Available', tier: 'available' },
-          { cls: '3A', fare: 1035, status: 'Available', tier: 'available' },
-          { cls: '2A', fare: 1490, status: 'RAC 4', tier: 'rac' },
-          { cls: '1A', fare: 2490, status: 'Available', tier: 'available' }
-        ] }
-    ],
-    'KCG->SBC': [
-      { number: '12785', name: 'Kacheguda Express', dep: '19:05', arr: '06:10 (+1)', duration: '11h 05m', days: 'Runs Daily',
-        classes: [
-          { cls: 'SL', fare: 395, status: 'Available', tier: 'available' },
-          { cls: 'CC', fare: 780, status: 'RAC 2', tier: 'rac' },
-          { cls: '3A', fare: 1035, status: 'Available', tier: 'available' },
-          { cls: '2A', fare: 1490, status: 'Available', tier: 'available' },
-          { cls: '1A', fare: 2490, status: 'WL 1', tier: 'wl' }
-        ] }
-    ],
-    // KSR Bengaluru (SBC) -> Markapur Road (MRK): the 18464 Prashanthi Express
-    // (SBC -> Bhubaneswar) genuinely stops at Markapur Road en route. Timing below
-    // is estimated from its public timetable (SBC departure 01:40 is confirmed;
-    // the MRK arrival is an approximation, not a live IRCTC lookup).
-    'SBC->MRK': [
-      { number: '18464', name: 'Prashanthi Express', dep: '01:40', arr: '12:35', duration: '10h 55m', days: 'Runs Daily',
-        classes: [
-          { cls: 'SL', fare: 300, status: 'Available', tier: 'available' },
-          { cls: '3A', fare: 790, status: 'Available', tier: 'available' },
-          { cls: '2A', fare: 1130, status: 'RAC 3', tier: 'rac' }
-        ] }
-    ]
-  };
-
   function getStationName(code) {
     const s = irctcStations.find(x => x.code === code);
     return s ? `${s.name} (${s.code})` : null;
   }
 
-  function searchTrains() {
-    const fromCode = document.getElementById('trainFrom').value;
-    const toCode = document.getElementById('trainTo').value;
-    const trains = trainRoutes[`${fromCode}->${toCode}`];
+  // Train results come from the backend's /api/trains/search, which tries the
+  // Indian Railway IRCTC API first, then the public erail.in timetable, then a
+  // few hand-verified routes. Each train carries a `source` saying which one
+  // it came from, and is labelled here accordingly.
+  const TRAIN_SOURCE_LABELS = {
+    'live': 'Live IRCTC fares',
+    'live-schedule': 'IRCTC-verified timings',
+    'schedule': 'Indian Railways timetable',
+    'verified': 'Hand-verified timetable'
+  };
 
-    const list = document.getElementById('trainResultsList');
-    if (!trains || trains.length === 0) {
-      list.innerHTML = `<p style="padding:16px 4px;color:#666;font-size:0.9rem;">
-        No direct trains found between ${getStationName(fromCode) || 'the selected station'} and ${getStationName(toCode) || 'the selected station'} in this demo.
-        Try a popular route such as Delhi &harr; Mumbai, Bengaluru &harr; Chennai, or Bengaluru &harr; Delhi.
-      </p>`;
-      document.getElementById('trainResults').classList.remove('hidden');
-      revealTrainFilters();
-      return;
+  let trainSearchSeq = 0;
+
+  function escapeTrainText(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, ch => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+    ));
+  }
+
+  function setTrainBadge(html) {
+    document.getElementById('trainSourceBadge').innerHTML = html;
+  }
+
+  function showTrainMessage(html) {
+    document.getElementById('trainResultsList').innerHTML = html;
+    document.getElementById('trainResults').classList.remove('hidden');
+  }
+
+  async function fetchTrains(fromCode, toCode, date) {
+    const query = new URLSearchParams({ from: fromCode, to: toCode, date }).toString();
+    let response;
+    try {
+      response = await fetch(`/api/trains/search?${query}`);
+    } catch (networkErr) {
+      throw new Error(
+        'Could not reach the TravelMate server. Make sure the backend is running (npm start in the ' +
+        'travelmate-backend folder) and that you\'re viewing this page at http://localhost:3000 — ' +
+        'not by opening the HTML file directly.'
+      );
     }
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(body && body.error && body.error.message ? body.error.message : `Request failed (${response.status}).`);
+    }
+    return body; // { results: [...], meta: { from, to, date, count, source } }
+  }
 
-    list.innerHTML = trains.map(t => `
+  // `classes`: the journey classes checked in Refine Results; others are hidden.
+  function trainCardHtml(t, classes) {
+    const liveFares = t.source === 'live';
+    return `
       <div class="result-card">
         <div class="train-info">
-          <span class="train-name">${t.name}</span><span class="train-number">#${t.number}</span>
-          <div class="train-days">${t.days}</div>
+          <span class="train-name">${escapeTrainText(t.trainName)}</span><span class="train-number">#${escapeTrainText(t.trainNumber)}</span>
+          <div class="train-days">${escapeTrainText(t.days)}</div>
+          <div class="train-source train-source-${escapeTrainText(t.source)}">${escapeTrainText(TRAIN_SOURCE_LABELS[t.source] || 'Timetable')}</div>
         </div>
         <div class="journey-time">
           <div class="time-block">
-            <div class="time">${t.dep}</div>
+            <div class="time">${escapeTrainText(t.departureTime)}</div>
             <div class="place">Dep</div>
           </div>
           <div class="journey-duration">
             <div class="line"></div>
-            ${t.duration}
+            ${escapeTrainText(t.duration)}
           </div>
           <div class="time-block">
-            <div class="time">${t.arr}</div>
+            <div class="time">${escapeTrainText(t.arrivalTime)}</div>
             <div class="place">Arr</div>
           </div>
         </div>
         <div class="class-list">
-          ${t.classes.map(c => `
+          ${(t.classes || []).filter(c => classes.has(c.cls)).map(c => {
+            // Only a class the backend marks as a live quote shows its status;
+            // every other fare is a fare-chart price, shown as "Listed fare".
+            const isLive = liveFares && c.live === true;
+            return `
             <div class="class-pill">
-              ${c.cls}
-              <span class="fare">₹${c.fare}</span>
-              <span class="avl-${c.tier}">${c.status}</span>
-            </div>
-          `).join('')}
+              ${escapeTrainText(c.cls)}
+              <span class="fare">₹${escapeTrainText(c.fare)}</span>
+              <span class="${isLive ? `avl-${escapeTrainText(c.tier)}` : 'avl-unknown'}">${escapeTrainText(isLive ? c.status : 'Listed fare')}</span>
+            </div>`;
+          }).join('')}
         </div>
-      </div>
-    `).join('');
-    document.getElementById('trainResults').classList.remove('hidden');
-    revealTrainFilters();
+      </div>`;
   }
+
+  async function searchTrains() {
+    const fromCode = document.getElementById('trainFrom').value;
+    const toCode = document.getElementById('trainTo').value;
+    const date = document.querySelector('#trains input[type="date"]').value;
+    const fromName = escapeTrainText(getStationName(fromCode) || fromCode);
+    const toName = escapeTrainText(getStationName(toCode) || toCode);
+    const seq = ++trainSearchSeq;
+
+    trainSearchState = null;
+    setTrainBadge('Searching <strong>IRCTC</strong> + timetable');
+    showTrainMessage(`<p class="no-flights-note"><span class="flight-spinner" aria-hidden="true"></span> Searching trains…</p>`);
+    revealTrainFilters();
+
+    let body;
+    try {
+      body = await fetchTrains(fromCode, toCode, date);
+    } catch (err) {
+      if (seq !== trainSearchSeq) return;
+      showTrainMessage(`
+        <div class="no-flights-note flight-error-note">
+          <strong>We couldn't search trains for ${fromName} → ${toName}.</strong><br>
+          ${escapeTrainText(err.message)}
+          <div style="margin-top:10px;">
+            <button type="button" class="select-flight-btn" onclick="searchTrains()">Retry Search</button>
+          </div>
+        </div>`);
+      return;
+    }
+    if (seq !== trainSearchSeq) return; // a newer search has started
+
+    const results = (body && body.results) || [];
+    const source = body && body.meta ? body.meta.source : null;
+
+    if (!results.length) {
+      showTrainMessage(source === 'unavailable'
+        ? `<div class="no-flights-note flight-error-note">
+            <strong>Train data is temporarily unavailable for ${fromName} → ${toName}.</strong><br>
+            The live and timetable sources could not be reached. Please try again in a moment.
+            <div style="margin-top:10px;">
+              <button type="button" class="select-flight-btn" onclick="searchTrains()">Retry Search</button>
+            </div>
+          </div>`
+        : `<p class="no-flights-note">No trains found between ${fromName} and ${toName} on this date. Try a different date or a nearby station.</p>`);
+      return;
+    }
+
+    trainSearchState = { results, source };
+    renderResultStationList('trainFromStationsList', results.map(t => t.fromStation));
+    renderResultStationList('trainToStationsList', results.map(t => t.toStation));
+    renderTrainResults();
+  }
+
+  // --- Refine Results (Trains): filters the last search's results in place ---
+
+  let trainSearchState = null; // { results, source } of the last successful search
+
+  function stationCodeOf(label) {
+    const m = /\(([A-Z0-9]+)\)\s*$/.exec(label || '');
+    return m ? m[1] : String(label || '').trim().toUpperCase();
+  }
+
+  // "08:33 (+2)" -> minutes after midnight (null if unparseable)
+  function clockToMinutes(text) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(text || '');
+    return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+  }
+
+  // After a search, the station lists show the stations the results actually
+  // use (a city search can board at several terminals), all checked.
+  function renderResultStationList(containerId, labels) {
+    const seen = new Map();
+    labels.forEach(label => { const code = stationCodeOf(label); if (code && !seen.has(code)) seen.set(code, label); });
+    document.getElementById(containerId).innerHTML = [...seen].map(([code, label]) =>
+      `<label class="filter-check-row"><input type="checkbox" checked value="${escapeTrainText(code)}"> ${escapeTrainText(String(label).toUpperCase())}</label>`
+    ).join('');
+  }
+
+  function checkedTrainClasses() {
+    return new Set([...document.querySelectorAll('#trainClassSection input[type="checkbox"]:checked')].map(cb => cb.value));
+  }
+
+  // A station not listed in the panel (e.g. the list was reset by picking a
+  // new station before re-searching) doesn't filter anything out.
+  function trainStationAllowed(containerId, label) {
+    const code = stationCodeOf(label);
+    const box = [...document.querySelectorAll(`#${containerId} input[type="checkbox"]`)].find(cb => cb.value === code);
+    return !box || box.checked;
+  }
+
+  // Inside an active time-slot quadrant and inside the slider range.
+  function trainTimeAllowed(sectionId, minutes) {
+    if (minutes == null) return true;
+    const section = document.getElementById(sectionId);
+    const hour = minutes / 60;
+    const inSlot = [...section.querySelectorAll('.time-slot-btn:not(.inactive)')].some(btn =>
+      hour >= Number(btn.dataset.slotMin) && hour < Number(btn.dataset.slotMax));
+    const lo = parseInt(section.querySelector('.range-min').value, 10);
+    const hi = parseInt(section.querySelector('.range-max').value, 10);
+    return inSlot && minutes >= Math.min(lo, hi) * 60 && minutes <= Math.max(lo, hi) * 60;
+  }
+
+  function trainPassesFilters(t, classes) {
+    const trainClasses = t.classes || [];
+    return (!trainClasses.length || trainClasses.some(c => classes.has(c.cls))) &&
+      trainStationAllowed('trainFromStationsList', t.fromStation) &&
+      trainStationAllowed('trainToStationsList', t.toStation) &&
+      trainTimeAllowed('trainDepartureSection', clockToMinutes(t.departureTime)) &&
+      trainTimeAllowed('trainArrivalSection', clockToMinutes(t.arrivalTime));
+  }
+
+  function renderTrainResults() {
+    if (!trainSearchState) return;
+    const { results, source } = trainSearchState;
+
+    const liveFareCount = results.filter(t => t.source === 'live').length;
+    const verifiedCount = results.filter(t => t.source === 'live-schedule' || t.source === 'live').length;
+    if (liveFareCount) {
+      setTrainBadge('Powered by <strong>IRCTC</strong>');
+    } else if (verifiedCount) {
+      setTrainBadge(`<strong>IRCTC</strong> verified ${verifiedCount} of ${results.length}`);
+    } else if (source === 'verified') {
+      setTrainBadge('Source: <strong>hand-verified timetable</strong>');
+    } else {
+      setTrainBadge('Source: <strong>Indian Railways timetable</strong>');
+    }
+
+    // What each per-train source label means, for the labels present.
+    const notes = [];
+    if (source === 'verified') {
+      notes.push('Live and timetable sources are unavailable right now, so these are hand-verified trains for this route; timings may be out of date.');
+    }
+    if (verifiedCount) notes.push('"IRCTC-verified timings": departure, arrival and running days checked against IRCTC\'s schedule.');
+    if (results.some(t => t.source === 'schedule')) notes.push('"Indian Railways timetable": from the public timetable, not checked against IRCTC.');
+    if (liveFareCount < results.length) {
+      notes.push('"Listed fare" is the fare-chart price, not a live quote, and seat availability is not shown — check IRCTC before booking.');
+    }
+
+    const classes = checkedTrainClasses();
+    const visible = results.filter(t => trainPassesFilters(t, classes));
+    const summary = visible.length < results.length
+      ? `<p class="results-summary"><strong>Showing ${visible.length} of ${results.length} trains</strong> matching your filters.</p>`
+      : '';
+
+    document.getElementById('trainResultsList').innerHTML =
+      `<p class="results-summary">${notes.map(escapeTrainText).join(' ')}</p>` + summary +
+      (visible.length
+        ? visible.map(t => trainCardHtml(t, classes)).join('')
+        : '<p class="no-flights-note">No trains match the selected filters. Use "Remove Filter" to see all trains.</p>');
+    document.getElementById('trainResults').classList.remove('hidden');
+  }
+
+  // Any change in the panel (checkboxes, time slots, sliders, Select All,
+  // Remove Filter) re-filters. Clicks are caught in the capture phase because
+  // the time-slot and Select All handlers stop propagation, and re-filter on
+  // the next tick, after those handlers have run.
+  (function bindTrainFilterListeners() {
+    const panel = document.getElementById('trainsFilters');
+    panel.addEventListener('change', renderTrainResults);
+    panel.addEventListener('input', renderTrainResults);
+    panel.addEventListener('click', () => setTimeout(renderTrainResults, 0), true);
+  })();
 
   function revealTrainFilters() {
     document.getElementById('trainFiltersPresearch').classList.add('hidden');

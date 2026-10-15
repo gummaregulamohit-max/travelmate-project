@@ -57,9 +57,10 @@ app.listen(PORT, () => {
     console.warn('⚠️  SERPAPI_KEY is not set — falling back to mock flight data for every search. Set it in .env.');
   }
   if (process.env.RAPIDAPI_KEY) {
-    console.log('✅ RAPIDAPI_KEY is set — live IRCTC train search is active.');
+    const { MAX_LOOKUPS_PER_SEARCH } = require('./src/services/irctc.service');
+    console.log(`✅ RAPIDAPI_KEY is set — the Indian Railway IRCTC API is the default train data provider (up to ${MAX_LOOKUPS_PER_SEARCH} uncached lookups per search).`);
   } else {
-    console.warn('⚠️  RAPIDAPI_KEY is not set — train search can only use the few verified routes and estimated schedules. Set it in .env to get real IRCTC trains for every station pair.');
+    console.warn('⚠️  RAPIDAPI_KEY is not set — train search falls back to the public erail.in timetable, without IRCTC-verified timings. Set it in .env.');
   }
   if (!process.env.AMADEUS_CLIENT_ID || !process.env.AMADEUS_CLIENT_SECRET) {
     console.log('ℹ️  AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET are not set — this is fine, Amadeus is not currently used (SerpApi is the active provider).');

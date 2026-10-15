@@ -3,7 +3,7 @@ const router = express.Router();
 
 const { searchStations, findStationByCode } = require('../services/stations.service');
 const { hasRetiringRoom } = require('../services/retiringRoom.service');
-const { searchLiveTrains, fetchTrainsBetweenStations, fetchSeatAvailability, deriveTrainType } = require('../services/irctc.service');
+const { searchLiveTrains, fetchTrainsBetweenStations, fetchIrctcSchedule, fetchSeatAvailability, deriveTrainType } = require('../services/irctc.service');
 const { estimateClassFare } = require('../utils/mockTrainGenerator');
 const { findKnownTrains } = require('../data/knownTrainRoutes');
 const { fetchErailTrains, fetchTrainSchedule } = require('../services/erail.service');
@@ -137,6 +137,9 @@ router.get('/class-availability', async (req, res, next) => {
  * GET /api/trains/schedule?train=<number>
  * Every stop of one train (code, name, arrival, departure, halt, km, day),
  * for the "Train Schedule" pop-up on a train card. 404 when unknown.
+ * IRCTC's own schedule (shares irctc.service's week-long cache, so trains
+ * already verified by a search cost no quota) with the erail timetable as
+ * fallback when RAPIDAPI_KEY is unset, the API errors, or it has no answer.
  */
 router.get('/schedule', async (req, res, next) => {
   try {
@@ -148,7 +151,15 @@ router.get('/schedule', async (req, res, next) => {
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
-    const schedule = await fetchTrainSchedule(train);
+    let schedule = null;
+    if (process.env.RAPIDAPI_KEY) {
+      try {
+        schedule = await fetchIrctcSchedule(train);
+      } catch (err) {
+        console.warn(`[trains] IRCTC schedule for ${train} failed, falling back to erail:`, err.message);
+      }
+    }
+    if (!schedule) schedule = await fetchTrainSchedule(train);
     if (!schedule) {
       return res.status(404).json({ error: { message: `No schedule found for train ${train}.`, status: 404 } });
     }
@@ -162,17 +173,18 @@ router.get('/schedule', async (req, res, next) => {
 /**
  * GET /api/trains/search?from=<code>&to=<code>&date=<date>
  *
- * Three-tier fallback, tried in order:
- *   1. Timetable trains with IRCTC-verified timings via the "Indian Railway
- *      IRCTC" RapidAPI (irctc.service.js) — up to 3 trains per search are
- *      checked live; fares are fare-chart prices. Requires RAPIDAPI_KEY in .env.
+ * Tried in order:
+ *   1. Default: the "Indian Railway IRCTC" RapidAPI (irctc.service.js) —
+ *      the route's timetable trains, with up to 3 per search (more from
+ *      cache) verified live: IRCTC's timings and running days replace the
+ *      timetable's; fares are fare-chart prices. Requires RAPIDAPI_KEY in .env.
  *   2. The public Indian Railways timetable via erail.in (erail.service.js)
  *      — every real train on the route with fare-chart prices, used when the
  *      live API has no key configured, errors, or is out of quota.
  *   3. Real, verified train data (knownTrainRoutes.js) for the handful of
  *      routes we've confirmed by hand — used if erail is unreachable too.
  *   4. Otherwise no trains — invented schedules would not match IRCTC.
- * All three flag retiring room availability from IRCTC Retiring Room.pdf.
+ * Every tier flags retiring room availability from IRCTC Retiring Room.pdf.
  */
 router.get('/search', async (req, res, next) => {
   try {

@@ -1,20 +1,22 @@
 // Fallback train schedule source: erail.in's public "trains between stations"
 // listing — the same Indian Railways timetable IRCTC shows, including fares
 // from the published fare chart (not live seat-by-seat quotes). Used by
-// /api/trains/search when the RapidAPI IRCTC1 call fails or its monthly quota
-// is exhausted, so the rider still sees the real trains on a route instead
+// /api/trains/search for the candidate trains on a route (the "Indian Railway
+// IRCTC" API has no route search) and as the whole answer when that API fails
+// or its monthly quota is exhausted, so the rider still sees the real trains instead
 // of "no trains". No API key needed.
 //
 // The response is one string: records separated by "^", fields by "~". The
 // first record is a header (station names); each following record is a
 // train. Field positions used below:
 //   0 train no · 1 name · 7 boarding stn code · 9 alighting stn code
-//   10 dep "HH.MM" · 12 duration "HH.MM" · 13 running days (Sun..Sat bits,
-//   at the boarding station) · 21 class flags · after "DATASOURCE_IR":
+//   10 dep "HH.MM" · 12 duration "HH.MM" · 13 running days (Mon..Sun bits,
+//   at the boarding station — e.g. 12028 Shatabdi, no service on Tuesdays,
+//   is "1011111") · 21 class flags · after "DATASOURCE_IR":
 //   validity start / end dates · a "<TYPE>:<km>:<fare groups>" fare chart.
 
 const axios = require('axios');
-const { deriveTrainType } = require('./irctc.service');
+const { deriveTrainType, describeDays: describeRunningDays } = require('./irctc.service');
 
 const ERAIL_URL = 'https://erail.in/rail/getTrains.aspx';
 const REQUEST_TIMEOUT_MS = 12000;
@@ -23,11 +25,15 @@ const REQUEST_TIMEOUT_MS = 12000;
 // 10 = EC). Positions not listed never line up with a bookable class here.
 const CLASS_SLOTS = { 0: '1A', 1: '2A', 2: '3A', 3: 'CC', 5: 'SL', 7: '3E', 10: 'EC' };
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Mon..Sun bits -> 7 booleans in Date#getUTCDay order (Sunday first);
+// null when the field isn't a 7-bit string.
+function runningDays(bits) {
+  if (!/^[01]{7}$/.test(bits || '')) return null;
+  return Array.from({ length: 7 }, (_, i) => bits[(i + 6) % 7] === '1');
+}
 
 function describeDays(bits) {
-  if (!/^[01]{7}$/.test(bits) || /^1+$/.test(bits)) return 'Runs Daily';
-  return `Runs on ${[...bits].map((b, i) => (b === '1' ? DAY_LABELS[i] : null)).filter(Boolean).join(', ')}`;
+  return describeRunningDays(runningDays(bits));
 }
 
 // "13.50" -> minutes after midnight
@@ -50,7 +56,8 @@ function parseTrain(record, date, stationLabel) {
   // Only trains that actually run from the boarding station on this weekday,
   // within their timetable validity (seasonal specials expire).
   const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
-  if (f[13] && f[13][weekday] !== '1') return null;
+  const runs = runningDays(f[13]);
+  if (runs && !runs[weekday]) return null;
   const dsIdx = f.indexOf('DATASOURCE_IR');
   if (dsIdx !== -1) {
     const [validFrom, validTo] = [f[dsIdx + 1], f[dsIdx + 2]];
