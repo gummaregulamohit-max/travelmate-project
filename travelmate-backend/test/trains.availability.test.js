@@ -161,11 +161,13 @@ function loadFrontend(extra = {}) {
   const context = vm.createContext({ setTimeout: () => {}, URLSearchParams, lastTrainSearchMeta: null, ...extra });
   vm.runInContext([
     /const IRCTC_TRAIN_SEARCH_URL = '[^']+';/.exec(HTML)[0],
+    /const IRCTC_SEAT_NOTE = '[^']+';/.exec(HTML)[0],
+    /const escapeAttr = .+;/.exec(HTML)[0],
     declaration(/function irctcSeatLinkHtml\(/),
     declaration(/function trainCardStationCodes\(/),
     declaration(/const SEAT_REFRESH_REASON_LABELS = \{/),
     declaration(/async function refreshClassFare\(/),
-    'this.api = { IRCTC_TRAIN_SEARCH_URL, irctcSeatLinkHtml, trainCardStationCodes, refreshClassFare };'
+    'this.api = { IRCTC_TRAIN_SEARCH_URL, IRCTC_SEAT_NOTE, irctcSeatLinkHtml, trainCardStationCodes, refreshClassFare };'
   ].join('\n'), context);
   return context;
 }
@@ -247,4 +249,85 @@ test('TravelMate: class pills carry their stations and date, and non-live ones l
 test('TravelMate: no "Unavailable" or "Check availability" wording is left', () => {
   assert.ok(!/Unavailable/.test(HTML), '"Unavailable" found');
   assert.ok(!/check availability/i.test(HTML), '"Check availability" found');
+});
+
+// --- "Check seats on IRCTC": a real link to IRCTC's official train search ----
+
+// Every attribute of the one <a> element in `html`, decoded.
+function linkAttributes(html) {
+  const anchors = html.match(/<a\s[^>]*>/g) || [];
+  assert.equal(anchors.length, 1, `expected exactly one link in: ${html}`);
+  const attrs = {};
+  for (const [, name, value] of anchors[0].matchAll(/([a-z-]+)="([^"]*)"/g)) {
+    attrs[name] = value.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  }
+  return attrs;
+}
+
+test('TravelMate: the IRCTC URL is the official train search page, with no guessed parameters', () => {
+  const { api } = loadFrontend();
+  const url = new URL(api.IRCTC_TRAIN_SEARCH_URL);
+  assert.equal(url.protocol, 'https:');
+  assert.equal(url.hostname, 'www.irctc.co.in');
+  assert.equal(url.pathname, '/nget/train-search');
+  assert.equal(url.search, '', 'no query string');
+  assert.equal(url.hash, '', 'no fragment');
+  // The same page the backend points to, and the one "Book Now" opens
+  assert.equal(api.IRCTC_TRAIN_SEARCH_URL, IRCTC_SEAT_CHECK_URL);
+  assert.ok(HTML.includes(`class="ab-select-btn" href="${IRCTC_SEAT_CHECK_URL}"`), 'Book Now uses the same URL');
+});
+
+test('TravelMate: "Check seats on IRCTC" is a link that opens IRCTC in a new tab', () => {
+  const { api } = loadFrontend();
+  const html = api.irctcSeatLinkHtml();
+  const attrs = linkAttributes(html);
+  assert.equal(attrs.href, IRCTC_SEAT_CHECK_URL);
+  assert.equal(attrs.target, '_blank');
+  assert.deepEqual(attrs.rel.split(/\s+/).sort(), ['noopener', 'noreferrer']);
+  assert.match(attrs['aria-label'], /IRCTC.*opens in a new tab/);
+  assert.match(html, />Check seats on IRCTC ↗<\/a>$/);
+});
+
+test('TravelMate: the link says availability must be verified on IRCTC, not that it is live', () => {
+  const { api } = loadFrontend();
+  const { title } = linkAttributes(api.irctcSeatLinkHtml());
+  assert.equal(title, api.IRCTC_SEAT_NOTE);
+  assert.match(title, /does not show live seat availability/);
+  assert.match(title, /verify seats on IRCTC/);
+  assert.doesNotMatch(api.irctcSeatLinkHtml(), /\blive (seats|availability)\b(?! availability)/i.source === '' ? /^$/ : /seats? (are )?available\b/i);
+});
+
+test('TravelMate: a tooltip with quotes or markup cannot break the link', () => {
+  const { api } = loadFrontend();
+  const hostile = 'Seats "full" <b>now</b> & more';
+  const html = api.irctcSeatLinkHtml(hostile);
+  const attrs = linkAttributes(html);
+  assert.equal(attrs.title, hostile, 'the text survives intact');
+  assert.equal(attrs.href, IRCTC_SEAT_CHECK_URL, 'href is unaffected');
+  assert.ok(!html.includes('<b>'), 'no markup injected');
+});
+
+test('TravelMate: the link that replaces an unsupported Refresh button is the same safe link', async () => {
+  const fetch = async () => ({ json: async () => ({ live: false, reason: 'not_supported', message: 'Not "offered" <here>' }) });
+  const { api } = loadFrontend({ fetch });
+  const { pill, btn } = fakePill({ train: '12649', class: 'SL', from: 'YPR', to: 'KCG', date: '2026-10-30' });
+  await api.refreshClassFare(btn);
+  const attrs = linkAttributes(pill.inserted);
+  assert.equal(attrs.href, IRCTC_SEAT_CHECK_URL);
+  assert.equal(attrs.target, '_blank');
+  assert.equal(attrs.title, 'Not "offered" <here>');
+});
+
+test('TravelMate: no click handler on the train or Compare lists intercepts the link', () => {
+  for (const id of ['trainResultsList', 'compareList']) {
+    const handler = declaration(new RegExp(`document\.getElementById\('${id}'\)\.addEventListener\('click'`));
+    assert.doesNotMatch(handler, /preventDefault|stopPropagation/, `${id} handler`);
+    assert.doesNotMatch(handler, /seat-check-link|closest\('a/, `${id} handler`);
+  }
+  assert.doesNotMatch(HTML, /\.seat-check-link[^{]*\{[^}]*pointer-events\s*:\s*none/, 'the link is clickable');
+});
+
+test('TravelMate: each train card shows a visible note to verify seats on IRCTC', () => {
+  assert.match(HTML, /t\.classes\.some\(c => c\.live !== true\) \? `<p class="seat-check-note">Fares marked \(est\.\) are estimates\. \$\{IRCTC_SEAT_NOTE\}<\/p>`/);
+  assert.match(HTML, /\.seat-check-note \{ flex-basis: 100%;/);
 });
