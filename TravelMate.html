@@ -358,6 +358,7 @@
   .avl-available { color: #27ae60; }
   .avl-rac { color: #e67e22; }
   .avl-wl { color: #e74c3c; }
+  .seat-check-link { display: block; margin-top: 2px; font-size: 0.78rem; color: #2c6e8f; text-decoration: underline; }
   .retiring-room-tag { color: #1a5f7a; font-weight: 600; }
   .estimated-tag { color: #e67e22; }
   .live-tag { color: #27ae60; font-weight: 600; }
@@ -2538,6 +2539,7 @@
   .ab-policy th, .ab-policy td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--ab-line); }
   .ab-policy th { background: var(--ab-soft); color: #4a5a61; }
   .ab-muted { color: var(--ab-muted); font-size: 0.76rem; margin: 8px 0 0; }
+  .ab-sim-notice { margin: 0 0 10px; padding: 8px 12px; border-left: 3px solid #e67e22; background: rgba(230, 126, 34, 0.1); color: inherit; font-size: 0.82rem; line-height: 1.4; border-radius: 4px; }
   .ab-center { text-align: center; }
   .ab-reviews { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
   .ab-review-score { text-align: center; }
@@ -3426,6 +3428,7 @@
 
         <div id="busResults" class="results-container ab-results hidden">
           <div class="ab-route-head" id="busRouteHead"></div>
+          <p class="ab-sim-notice" id="busSimNotice" role="note"><strong>Simulated results</strong> — bus schedules, fares and seat information are illustrative, not live inventory. Check the operator or redBus before you travel.</p>
           <div class="ab-quick-pills" id="busQuickPills">
             <button type="button" class="ab-pill" data-val="rated"><span class="ab-pill-ico">★</span>Highest Rated</button>
             <button type="button" class="ab-pill" data-val="pricedrop"><span class="ab-pill-ico">↓</span>Price Drop</button>
@@ -4258,8 +4261,30 @@
     if (source === 'live-partial') return '<span class="bag-tag live-tag">🟢 Live (partial)</span>';
     if (source === 'live-schedule') return '<span class="bag-tag estimated-tag">Live schedule · fare estimated</span>';
     if (source === 'estimated') return '<span class="bag-tag estimated-tag">Estimated schedule</span>';
-    if (source === 'schedule') return '<span class="bag-tag estimated-tag">Chart fare · check availability</span>';
-    return ''; // 'verified' — real data, no extra caveat needed
+    if (source === 'schedule') return '<span class="bag-tag estimated-tag">Timetable · chart fare</span>';
+    if (source === 'verified') return '<span class="bag-tag estimated-tag">Verified timings · fare estimated</span>';
+    return '';
+  }
+
+  // No train source here offers live seat availability, so a class that isn't
+  // marked live links to IRCTC instead of showing a seat status.
+  const IRCTC_TRAIN_SEARCH_URL = 'https://www.irctc.co.in/nget/train-search';
+
+  function irctcSeatLinkHtml(title) {
+    return `<a class="seat-check-link" href="${IRCTC_TRAIN_SEARCH_URL}" target="_blank" rel="noopener" title="${title || 'Live seat availability is not available here — check on IRCTC'}">Check seats on IRCTC ↗</a>`;
+  }
+
+  // The station codes a class pill's live lookup should use: the train's own
+  // boarding / alighting stations ("Yesvantpur Junction (YPR)" -> "YPR"), not
+  // the station picked in the search form — a city search spans several.
+  // Falls back to the searched stations only when a label carries no code
+  // (the offline demo dataset).
+  function trainCardStationCodes(t, meta) {
+    const code = (label) => { const m = /\(([A-Za-z0-9]+)\)\s*$/.exec(label || ''); return m ? m[1] : ''; };
+    return {
+      from: code(t.fromStation) || (meta && meta.from) || '',
+      to: code(t.toStation) || (meta && meta.to) || ''
+    };
   }
 
   function trainTypeBadgeClass(trainType) {
@@ -4331,6 +4356,7 @@
   // used by the Compare Prices page, which lists these same cards.
   function renderTrainCard(t, meta, opts = {}) {
     const stations = trainCardStations(t, meta);
+    const codes = trainCardStationCodes(t, meta);
     const cheapest = t.classes.reduce((min, c) => (c.fare < min.fare ? c : min), t.classes[0]);
     const runningDays = parseRunningDays(t.days);
     const journeyDate = meta && meta.date;
@@ -4381,11 +4407,13 @@
         </div>
         <div class="class-list">
           ${t.classes.map(c => `
-            <div class="class-pill" data-train="${t.trainNumber}" data-class="${c.cls}">
+            <div class="class-pill" data-train="${t.trainNumber}" data-class="${c.cls}" data-from="${codes.from}" data-to="${codes.to}" data-date="${journeyDate || ''}">
               <div class="class-pill-label">${c.cls}</div>
-              <span class="fare">₹${c.fare}${c.live === false ? ' (est.)' : ''}</span>
-              <span class="avl-${c.tier}">${c.status}</span>
-              <button type="button" class="class-refresh-btn" title="Refresh live fare &amp; availability">⟳ Refresh</button>
+              <span class="fare">₹${c.fare}${c.live === true ? '' : ' (est.)'}</span>
+              ${c.live === true
+                ? `<span class="avl-${c.tier}">${c.status}</span>
+              <button type="button" class="class-refresh-btn" title="Refresh live fare &amp; availability">⟳ Refresh</button>`
+                : irctcSeatLinkHtml()}
             </div>
           `).join('')}
         </div>
@@ -7611,12 +7639,25 @@
   // On-demand live fare/availability refresh for one class pill — the bulk
   // search only enriches its first few trains up front, so this lets a rider
   // re-check any specific class (or one the initial search only estimated).
+  // A non-live answer says why (`reason`); it never means "no seats".
+  const SEAT_REFRESH_REASON_LABELS = {
+    not_configured: 'Live check off',
+    rate_limited: 'Try again later',
+    no_data: 'No live data',
+    provider_error: 'Check failed'
+  };
+
   async function refreshClassFare(btn) {
-    if (!lastTrainSearchMeta) return;
     const pill = btn.closest('.class-pill');
     if (!pill) return;
+    // The pill carries its own train's stations and date (see
+    // trainCardStationCodes); the last search fills in anything missing.
+    const fallback = lastTrainSearchMeta || {};
     const { train: trainNumber, class: classType } = pill.dataset;
-    const { from, to, date } = lastTrainSearchMeta;
+    const from = pill.dataset.from || fallback.from;
+    const to = pill.dataset.to || fallback.to;
+    const date = pill.dataset.date || fallback.date;
+    if (!trainNumber || !classType || !from || !to || !date) return;
 
     const originalLabel = btn.textContent;
     btn.disabled = true;
@@ -7637,8 +7678,14 @@
           statusEl.textContent = body.status;
         }
         btn.textContent = '⟳ Refreshed';
+      } else if (body && body.reason === 'not_supported') {
+        // No live seat source exists: offer IRCTC instead, for good.
+        btn.insertAdjacentHTML('afterend', irctcSeatLinkHtml(body.message));
+        btn.remove();
+        return;
       } else {
-        btn.textContent = '⟳ Unavailable';
+        btn.textContent = body ? (SEAT_REFRESH_REASON_LABELS[body.reason] || 'No live data') : 'Check failed';
+        btn.title = (body && body.message) || '';
       }
     } catch (err) {
       btn.textContent = '⟳ Failed';
@@ -9337,7 +9384,10 @@
         const fares = results.flatMap(t => (t.classes || []).map(c => c.fare));
         if (!fares.length) throw new Error('empty');
         // 'schedule' = timetable + fare-chart prices (backend fallback when live IRCTC is out of quota)
-        return { price: Math.min(...fares), duration: compareShortest(results), source: body.meta && body.meta.source === 'schedule' ? 'listed' : 'live' };
+        // Only a class a real source marked live is a live fare; timetable,
+        // IRCTC-verified and hand-verified trains all carry chart/estimated fares.
+        const anyLive = results.some(t => (t.classes || []).some(c => c.live === true));
+        return { price: Math.min(...fares), duration: compareShortest(results), source: anyLive ? 'live' : 'listed' };
       } catch (e) {
         const demo = offlineDemoTrains(pair.from.code, pair.to.code);
         const fares = (demo || []).flatMap(t => (t.classes || []).map(c => c.fare));

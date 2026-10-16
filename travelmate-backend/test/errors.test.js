@@ -15,7 +15,7 @@ before(async () => { server = await startServer(); });
 after(() => server.stop());
 
 test('an unknown API route is a JSON 404', async () => {
-  for (const p of ['/api/does-not-exist', '/api/trains/nope', '/api/locations/nope']) {
+  for (const p of ['/api/does-not-exist', '/api/trains/nope', '/api/locations/nope', '/api/buses/nope']) {
     const { status, body } = await server.get(p);
     assert.equal(status, 404, `status for ${p}`);
     assert.deepEqual(body, { error: { message: 'Not found.', status: 404 } });

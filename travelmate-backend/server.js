@@ -7,6 +7,8 @@ const path = require('path');
 const flightsRouter = require('./src/routes/flights.routes');
 const trainsRouter = require('./src/routes/trains.routes');
 const locationsRouter = require('./src/routes/locations.routes');
+const busesRouter = require('./src/routes/buses.routes');
+const healthRouter = require('./src/routes/health.routes');
 const { warmUp: warmUpLocations } = require('./src/services/locations.service');
 const { errorHandler } = require('./src/middleware/errorHandler');
 
@@ -30,6 +32,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/flights', flightsRouter);
 app.use('/api/trains', trainsRouter);
 app.use('/api/locations', locationsRouter);
+app.use('/api/buses', busesRouter);
+app.use('/api/health', healthRouter);
 
 // 404 for unmatched API routes
 app.use('/api', (req, res) => {

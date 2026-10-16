@@ -17,11 +17,13 @@ function freePort() {
   });
 }
 
-async function startServer() {
+// `env` adds or overrides variables after the blanking — only ever fake
+// placeholder values, e.g. to check a key never shows up in a response.
+async function startServer({ env = {} } = {}) {
   const port = await freePort();
   const child = spawn(process.execPath, ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), SERPAPI_KEY: '', RAPIDAPI_KEY: '', AMADEUS_CLIENT_ID: '', AMADEUS_CLIENT_SECRET: '' },
+    env: { ...process.env, PORT: String(port), SERPAPI_KEY: '', RAPIDAPI_KEY: '', AMADEUS_CLIENT_ID: '', AMADEUS_CLIENT_SECRET: '', ...env },
     stdio: ['ignore', 'pipe', 'pipe']
   });
 
@@ -40,7 +42,8 @@ async function startServer() {
   return {
     async request(urlPath, init) {
       const res = await fetch(baseUrl + urlPath, init);
-      return { status: res.status, body: await res.json() };
+      const text = await res.text();
+      return { status: res.status, headers: res.headers, text, body: JSON.parse(text) };
     },
     get(urlPath) { return this.request(urlPath); },
     stop() { return new Promise((resolve) => { child.once('exit', resolve); child.kill(); }); }

@@ -10,15 +10,18 @@ function normalizeCity(input) {
   return trimmed.length ? trimmed : null;
 }
 
+const SIMULATED_NOTICE = 'Simulated schedules and fares for planning only — not live inventory. Check the operator or redBus for real buses and seats.';
+
 /**
  * GET /api/buses/search?from=<city>&to=<city>&date=<YYYY-MM-DD>
  *
- * Generates 6-10 realistic, dynamically scheduled intercity buses for the
- * given city pair, covering both government RTCs (KSRTC, TSRTC, APSRTC,
- * MSRTC) and private operators (VRL, Orange, SRS, Zingbus, IntrCity
- * SmartBus). Unlike flights/trains there's no live bus-schedule API wired
- * up here, so results are always the seeded "estimated" tier — but they're
- * stable per route/date rather than re-randomizing on every request.
+ * Generates 6-10 simulated intercity buses for the given city pair, covering
+ * both government RTCs (KSRTC, TSRTC, APSRTC, MSRTC) and private operators
+ * (VRL, Orange, SRS, Zingbus, IntrCity SmartBus). There's no live bus API
+ * wired up, so results are always simulated (meta.source "simulated", each
+ * result `simulated: true`) — stable per route/date rather than
+ * re-randomizing on every request, with no seat counts and a link to where
+ * real buses can be checked.
  */
 router.get('/search', (req, res, next) => {
   try {
@@ -41,7 +44,7 @@ router.get('/search', (req, res, next) => {
 
     const results = generateMockBuses({ from, to, date });
 
-    res.json({ results, meta: { from, to, date, count: results.length, source: 'estimated' } });
+    res.json({ results, meta: { from, to, date, count: results.length, source: 'simulated', notice: SIMULATED_NOTICE } });
   } catch (err) {
     next(err);
   }

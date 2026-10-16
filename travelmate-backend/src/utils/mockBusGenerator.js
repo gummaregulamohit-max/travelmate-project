@@ -52,8 +52,8 @@ function daysElapsed(depMinutes, durationMinutes) {
 }
 
 // Government RTCs and private operators, each with a few realistic
-// sub-brand/bus-type variants. `portal` (govt only) links to the RTC's own
-// booking site; private operators are booked via a RedBus city-pair deep link.
+// sub-brand/bus-type variants. `portal` (govt only) is the RTC's own site;
+// for private operators the rider checks real buses on a RedBus city-pair page.
 const OPERATOR_PROFILES = [
   {
     key: 'KSRTC', isGovt: true, portal: 'https://ksrtc.in',
@@ -180,7 +180,10 @@ function pickPoints(rng, points, count) {
 }
 
 /**
- * Generates 6-10 mock scheduled intercity buses for any origin/destination city pair.
+ * Generates 6-10 simulated intercity buses for any origin/destination city
+ * pair. They are not live inventory: there is no seat count, every result is
+ * flagged `simulated`, and `checkAvailabilityUrl` points to where real buses
+ * on the route can be checked.
  * @param {{from: string, to: string, date?: string}} params
  */
 function generateMockBuses({ from, to, date }) {
@@ -229,21 +232,29 @@ function generateMockBuses({ from, to, date }) {
       ? Math.round(randRange(rng, 3.5, 4.3) * 10) / 10
       : Math.round(randRange(rng, 3.8, 4.8) * 10) / 10;
 
+    const boardingPoints = pickPoints(rng, fromPoints, randInt(rng, 3, Math.min(4, fromPoints.length)));
+    const droppingPoints = pickPoints(rng, toPoints, randInt(rng, 3, Math.min(4, toPoints.length)));
+    // Formerly an invented seat count; the draw is kept so the amenities that
+    // follow stay the same for a given route and date.
+    randInt(rng, 4, 42);
+
     return {
       id: `bus-${slugify(from)}-${slugify(to)}-${i + 1}`,
+      simulated: true,
       operatorName: variant.name,
       isGovt: profile.isGovt,
       busType: variant.busType,
       departureTime: minutesToClock(depMinutes),
       arrivalTime: minutesToClock(arrMinutes) + (extraDays > 0 ? ` (+${extraDays})` : ''),
       duration: `${hours}h ${String(mins).padStart(2, '0')}m`,
-      boardingPoints: pickPoints(rng, fromPoints, randInt(rng, 3, Math.min(4, fromPoints.length))),
-      droppingPoints: pickPoints(rng, toPoints, randInt(rng, 3, Math.min(4, toPoints.length))),
+      boardingPoints,
+      droppingPoints,
       fare,
+      fareIsEstimate: true,
       rating,
-      seatsAvailable: randInt(rng, 4, 42),
       amenities: amenitiesFor(rng, profile, variant.busType),
-      bookingUrl: profile.isGovt ? profile.portal : redbusUrl(from, to)
+      checkAvailabilityUrl: profile.isGovt ? profile.portal : redbusUrl(from, to),
+      checkAvailabilityLabel: `Check real buses on ${profile.isGovt ? `the ${profile.key} site` : 'redBus'}`
     };
   });
 

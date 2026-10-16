@@ -1,7 +1,7 @@
 {
   "name": "travelmate-backend",
   "version": "1.0.0",
-  "description": "TravelMate flight search backend — live flight offers via Amadeus Self-Service API",
+  "description": "TravelMate backend: flights via SerpApi (Google Flights), trains via the Indian Railway IRCTC API with erail.in fallback, simulated buses, and location search",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

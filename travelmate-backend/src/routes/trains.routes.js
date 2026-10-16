@@ -9,6 +9,7 @@ const { findKnownTrains } = require('../data/knownTrainRoutes');
 const { fetchErailTrains, fetchTrainSchedule } = require('../services/erail.service');
 const { normalizeDateToISO, extractStationCode, queryString, parseLimit } = require('../utils/requestNormalizers');
 const { getCached, setCached } = require('../services/cache.service');
+const { IRCTC_SEAT_CHECK_URL, SEAT_CHECK_STATUS, REASONS, withSeatCheck, availabilityReason } = require('../utils/seatAvailability');
 
 function stationLabel(code) {
   const station = findStationByCode(code);
@@ -70,7 +71,7 @@ function fillMissingClasses(train) {
   const classes = train.classesAvailable.map((cls) => {
     const live = liveByCls.get(cls);
     if (live) return { ...live, live: true };
-    return { cls, fare: estimateClassFare(cls, train.durationMinutes), status: 'Check availability', tier: 'available', live: false };
+    return { cls, fare: estimateClassFare(cls, train.durationMinutes), status: SEAT_CHECK_STATUS, tier: 'unknown', live: false };
   });
   return classes;
 }
@@ -101,8 +102,12 @@ router.get('/stations', (req, res, next) => {
  * "Refresh" button on an individual class pill, since the bulk /search above
  * only enriches its first few trains with live fares up front. Always hits
  * the live API directly (no verified/estimated fallback tier here — a stale
- * estimate re-labeled as a "refresh" would defeat the point of the button),
- * so this cleanly reports "unavailable" rather than lying about freshness.
+ * estimate re-labeled as a "refresh" would defeat the point of the button).
+ *
+ * Without a live answer it returns 200 { live: false, cls, reason, message,
+ * checkUrl }, where `reason` is one of utils/seatAvailability REASONS —
+ * "not_supported" with the current train API, which has no seat-status
+ * endpoint — and `checkUrl` is IRCTC's train search. It never means "no seats".
  */
 router.get('/class-availability', async (req, res, next) => {
   try {
@@ -115,18 +120,20 @@ router.get('/class-availability', async (req, res, next) => {
     if (!trainNumber || !classType || !from || !to || !date) {
       return res.status(400).json({ error: { message: 'trainNumber, classType, from, to, and date are all required.', status: 400 } });
     }
+    const notLive = (reason, message) => res.json({ live: false, cls: classType, reason, message, checkUrl: IRCTC_SEAT_CHECK_URL });
     if (!process.env.RAPIDAPI_KEY) {
-      return res.json({ live: false, cls: classType, message: 'Live refresh is not configured on this server.' });
+      return notLive(REASONS.NOT_CONFIGURED, 'Live refresh is not configured on this server.');
     }
 
     try {
       const result = await fetchSeatAvailability({ trainNumber, fromCode: from, toCode: to, classType, date });
       if (!result) {
-        return res.json({ live: false, cls: classType, message: 'No live update available for this class right now.' });
+        return notLive(REASONS.NO_DATA, 'No live update available for this class right now.');
       }
       res.json({ live: true, ...result });
     } catch (err) {
-      res.json({ live: false, cls: classType, message: err.rateLimited ? 'Live lookups are rate-limited right now — try again shortly.' : err.message });
+      const reason = availabilityReason(err);
+      notLive(reason, reason === REASONS.RATE_LIMITED ? 'Live lookups are rate-limited right now — try again shortly.' : err.message);
     }
   } catch (err) {
     next(err);
@@ -338,7 +345,11 @@ router.get('/search', async (req, res, next) => {
       source = sourceFailed ? 'unavailable' : 'live';
     }
 
-    const payload = { results, meta: { from, to, date, count: results.length, source } };
+    // Fares here are fare-chart or estimated prices, never live seat status:
+    // only a class a real source marked live keeps one (see withSeatCheck).
+    results = results.map((t) => ({ ...t, classes: withSeatCheck(t.classes) }));
+    const seatAvailability = { live: false, reason: REASONS.NOT_SUPPORTED, checkUrl: IRCTC_SEAT_CHECK_URL };
+    const payload = { results, meta: { from, to, date, count: results.length, source, seatAvailability } };
     if (results.length || !sourceFailed) setCached(cacheKey, payload);
     res.json(payload);
   } catch (err) {
