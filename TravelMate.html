@@ -359,6 +359,7 @@
   .avl-rac { color: #e67e22; }
   .avl-wl { color: #e74c3c; }
   .seat-check-link { display: block; margin-top: 2px; font-size: 0.78rem; color: #2c6e8f; text-decoration: underline; }
+  .seat-check-note { flex-basis: 100%; margin: 2px 0 0; font-size: 0.75rem; color: #6b7a80; }
   .retiring-room-tag { color: #1a5f7a; font-weight: 600; }
   .estimated-tag { color: #e67e22; }
   .live-tag { color: #27ae60; font-weight: 600; }
@@ -4267,11 +4268,17 @@
   }
 
   // No train source here offers live seat availability, so a class that isn't
-  // marked live links to IRCTC instead of showing a seat status.
+  // marked live links to IRCTC instead of showing a seat status. This is
+  // IRCTC's official train search page (the same one "Book Now" opens); it
+  // takes no route or date parameters, so the rider searches there.
   const IRCTC_TRAIN_SEARCH_URL = 'https://www.irctc.co.in/nget/train-search';
+  const IRCTC_SEAT_NOTE = 'TravelMate does not show live seat availability — verify seats on IRCTC before booking.';
+
+  const escapeAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   function irctcSeatLinkHtml(title) {
-    return `<a class="seat-check-link" href="${IRCTC_TRAIN_SEARCH_URL}" target="_blank" rel="noopener" title="${title || 'Live seat availability is not available here — check on IRCTC'}">Check seats on IRCTC ↗</a>`;
+    return `<a class="seat-check-link" href="${IRCTC_TRAIN_SEARCH_URL}" target="_blank" rel="noopener noreferrer"` +
+      ` title="${escapeAttr(title || IRCTC_SEAT_NOTE)}" aria-label="Check seat availability on IRCTC (opens in a new tab)">Check seats on IRCTC ↗</a>`;
   }
 
   // The station codes a class pill's live lookup should use: the train's own
@@ -4416,6 +4423,7 @@
                 : irctcSeatLinkHtml()}
             </div>
           `).join('')}
+          ${t.classes.some(c => c.live !== true) ? `<p class="seat-check-note">Fares marked (est.) are estimates. ${IRCTC_SEAT_NOTE}</p>` : ''}
         </div>
         <div class="ab-card-foot">
           <div class="ab-foot-left ntes-note">
