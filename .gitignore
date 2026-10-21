@@ -10,6 +10,9 @@ node_modules/
 *.log
 npm-debug.log*
 
+# Local IRCTC request count / quota state (travelmate-backend/.cache)
+.cache/
+
 # Build and test output
 dist/
 build/

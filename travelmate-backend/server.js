@@ -61,8 +61,20 @@ app.listen(PORT, () => {
     console.warn('⚠️  SERPAPI_KEY is not set — falling back to mock flight data for every search. Set it in .env.');
   }
   if (process.env.RAPIDAPI_KEY) {
-    const { MAX_LOOKUPS_PER_SEARCH } = require('./src/services/irctc.service');
-    console.log(`✅ RAPIDAPI_KEY is set — the Indian Railway IRCTC API is the default train data provider (up to ${MAX_LOOKUPS_PER_SEARCH} uncached lookups per search).`);
+    // Reads the local usage file only — no request is sent at startup.
+    const { MAX_LOOKUPS_PER_SEARCH, requestBudgetStatus } = require('./src/services/irctc.service');
+    const quota = requestBudgetStatus();
+    if (!quota.enabled) {
+      console.log('ℹ️  RAPIDAPI_KEY is set, but live Indian Railway IRCTC requests are OFF (TRAIN_API_REQUEST_BUDGET is 0 or unset) — trains use the public timetable plus any cached IRCTC data.');
+    } else {
+      console.log(`✅ Live Indian Railway IRCTC requests are on: ${quota.requestsSent} of ${quota.budget} budgeted requests sent (up to ${MAX_LOOKUPS_PER_SEARCH} per search).`);
+      console.log(quota.configuredPeriod
+        ? `ℹ️  IRCTC budget period: ${quota.configuredPeriod.start} to ${quota.configuredPeriod.end} (TRAIN_API_QUOTA_RESET_DATE).`
+        : 'ℹ️  TRAIN_API_QUOTA_RESET_DATE is not set — the IRCTC request count restarts only by a manual reset (npm run irctc:usage).');
+    }
+    if (quota.resetDateMismatch) console.warn(`⚠️  RapidAPI reported its quota resets at ${quota.provider.resetAt}, more than a day from the configured period end — check TRAIN_API_QUOTA_RESET_DATE.`);
+    if (quota.blockedUntil) console.warn(`⚠️  IRCTC requests are blocked (${quota.blockReason}) until ${quota.blockedUntil}.`);
+    if (quota.provider) console.log(`ℹ️  RapidAPI last reported ${quota.provider.remaining} requests left (at ${quota.provider.observedAt}).`);
   } else {
     console.warn('⚠️  RAPIDAPI_KEY is not set — train search falls back to the public erail.in timetable, without IRCTC-verified timings. Set it in .env.');
   }

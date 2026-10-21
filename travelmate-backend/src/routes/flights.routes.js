@@ -45,7 +45,8 @@ router.get('/search', async (req, res, next) => {
     const cacheKey = JSON.stringify({ origin, destination, departureDate, returnDate, cabinClass });
     const cached = getCached(cacheKey);
     if (cached) {
-      return res.json(cached);
+      // Same answer as the first time (live or mock), served from the 5-minute cache.
+      return res.json({ ...cached, meta: { ...cached.meta, cached: true } });
     }
 
     const normalizedCabinClass = cabinClass ? cabinClass.toUpperCase() : undefined;
@@ -88,7 +89,7 @@ router.get('/search', async (req, res, next) => {
 
     const payload = {
       results,
-      meta: { origin, destination, departureDate, returnDate: returnDate || null, count: results.length, source }
+      meta: { origin, destination, departureDate, returnDate: returnDate || null, count: results.length, source, cached: false }
     };
 
     setCached(cacheKey, payload);

@@ -18,8 +18,10 @@ const SNAPSHOT = {
   fullStations: 8952,
   stationDirectory: 8956,
   retiringRoomStations: 288,
-  airports: 4008,
-  places: { places: 162514, hidden: 3587, cities: 5822, towns: 7699, villages: 148993 }
+  // +1: Shivamogga Airport (RQY). With an airport, Shivamogga also takes in
+  // the "Shimoga Bidare" (BEI) station, so one town entry merges into it.
+  airports: 4009,
+  places: { places: 162513, hidden: 3587, cities: 5822, towns: 7698, villages: 148993 }
 };
 
 const readJson = (file) => JSON.parse(fs.readFileSync(path.join(DATA, file), 'utf8'));
@@ -91,6 +93,24 @@ test('every retiring-room station exists in the directory, once', () => {
 test('airports include BOM and DEL', () => {
   const airports = readJson('airports.json');
   for (const code of ['BOM', 'DEL', 'NMI']) assert.ok(airports.some((a) => a.code === code), `airport ${code} is missing`);
+});
+
+test('Shivamogga Airport (RQY) is in the backend and frontend airport lists', () => {
+  assert.deepEqual(readJson('airports.json').find((a) => a.code === 'RQY'),
+    { code: 'RQY', name: 'Shivamogga Airport', city: 'Shivamogga', country: 'India', continent: 'Asia' });
+  const html = fs.readFileSync(path.join(ROOT, '..', 'TravelMate.html'), 'utf8');
+  const line = html.split('\n').find((l) => l.includes('const FLIGHT_AIRPORTS_ALL'));
+  const { airports } = JSON.parse(line.slice(line.indexOf('{'), line.lastIndexOf('}') + 1));
+  assert.deepEqual(airports.find((a) => a[0] === 'RQY'), ['RQY', 'Shivamogga Airport', 'Shivamogga', 'IN', 'AS', 1, 'Shimoga, Sogane']);
+  assert.equal(airports.length, SNAPSHOT.airports, 'frontend and backend list the same number of airports');
+});
+
+test('Shivamogga offers flights (RQY), trains and buses', () => {
+  const [place] = searchLocations('Shivamogga', { limit: 1 });
+  assert.equal(place.name, 'Shivamogga');
+  assert.deepEqual(place.points.airports.map((a) => a.code), ['RQY']);
+  for (const code of ['SME', 'SMET']) assert.ok(place.points.stations.some((s) => s.code === code), `station ${code}`);
+  assert.deepEqual(place.modes, ['flights', 'trains', 'buses']);
 });
 
 test('the location directory has the expected size', () => {

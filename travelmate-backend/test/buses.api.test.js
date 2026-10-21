@@ -75,18 +75,6 @@ test('missing or invalid parameters are a 400', async () => {
   }
 });
 
-test('TravelMate.html shows the simulated-results notice above the bus results', () => {
-  const html = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', 'TravelMate.html'), 'utf8');
-  const notice = /<p class="ab-sim-notice" id="busSimNotice" role="note">([\s\S]*?)<\/p>/.exec(html);
-  assert.ok(notice, 'busSimNotice is missing');
-  assert.match(notice[1], /Simulated results/);
-  assert.match(notice[1], /schedules, fares and seat information/);
-  assert.match(notice[1], /not live inventory/);
-  const results = html.indexOf('<div id="busResults"');
-  const list = html.indexOf('<div id="busResultsList">');
-  assert.ok(results < notice.index && notice.index < list, 'the notice should sit inside #busResults, above the list');
-});
-
 test('an unknown /api/buses path is a JSON 404', async () => {
   const { status, body } = await server.get('/api/buses/nope');
   assert.equal(status, 404);

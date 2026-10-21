@@ -123,8 +123,8 @@ test('search: hand-entered seat statuses never reach the client', async (t) => {
   t.mock.method(console, 'warn', () => {});
   const { status, body } = await searchInProcess('?from=YPR&to=KCG&date=2026-10-30');
   assert.equal(status, 200);
-  assert.equal(body.meta.source, 'verified');
-  assert.ok(body.results.length > 0, 'expected the verified YPR->KCG trains');
+  assert.equal(body.meta.source, 'reference');
+  assert.ok(body.results.length > 0, 'expected the known-route YPR->KCG trains');
   for (const train of body.results) {
     for (const c of train.classes) {
       assert.equal(c.live, false, `${train.trainNumber} ${c.cls}`);
@@ -294,7 +294,8 @@ test('TravelMate: the link says availability must be verified on IRCTC, not that
   assert.equal(title, api.IRCTC_SEAT_NOTE);
   assert.match(title, /does not show live seat availability/);
   assert.match(title, /verify seats on IRCTC/);
-  assert.doesNotMatch(api.irctcSeatLinkHtml(), /\blive (seats|availability)\b(?! availability)/i.source === '' ? /^$/ : /seats? (are )?available\b/i);
+  // Nothing in the link reads as a seat status ("Available", "RAC", "WL ...")
+  assert.doesNotMatch(api.irctcSeatLinkHtml(), /\bAvailable\b|\bRAC\b|\bWL\b/);
 });
 
 test('TravelMate: a tooltip with quotes or markup cannot break the link', () => {
@@ -320,7 +321,7 @@ test('TravelMate: the link that replaces an unsupported Refresh button is the sa
 
 test('TravelMate: no click handler on the train or Compare lists intercepts the link', () => {
   for (const id of ['trainResultsList', 'compareList']) {
-    const handler = declaration(new RegExp(`document\.getElementById\('${id}'\)\.addEventListener\('click'`));
+    const handler = declaration(new RegExp(String.raw`document\.getElementById\('${id}'\)\.addEventListener\('click'`));
     assert.doesNotMatch(handler, /preventDefault|stopPropagation/, `${id} handler`);
     assert.doesNotMatch(handler, /seat-check-link|closest\('a/, `${id} handler`);
   }

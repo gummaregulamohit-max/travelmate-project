@@ -28054,5 +28054,12 @@
     "city": "Sylhet",
     "country": "Bangladesh",
     "continent": "Asia"
+  },
+  {
+    "code": "RQY",
+    "name": "Shivamogga Airport",
+    "city": "Shivamogga",
+    "country": "India",
+    "continent": "Asia"
   }
 ]

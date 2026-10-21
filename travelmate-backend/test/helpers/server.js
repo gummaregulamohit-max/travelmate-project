@@ -5,6 +5,7 @@
 const { spawn } = require('node:child_process');
 const net = require('node:net');
 const path = require('node:path');
+const os = require('node:os');
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -23,7 +24,11 @@ async function startServer({ env = {} } = {}) {
   const port = await freePort();
   const child = spawn(process.execPath, ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), SERPAPI_KEY: '', RAPIDAPI_KEY: '', AMADEUS_CLIENT_ID: '', AMADEUS_CLIENT_SECRET: '', ...env },
+    // Live IRCTC requests off and a throwaway usage file, whatever .env says.
+    env: {
+      ...process.env, PORT: String(port), SERPAPI_KEY: '', RAPIDAPI_KEY: '', AMADEUS_CLIENT_ID: '', AMADEUS_CLIENT_SECRET: '',
+      TRAIN_API_REQUEST_BUDGET: '0', TRAIN_API_USAGE_FILE: path.join(os.tmpdir(), `travelmate-test-usage-${port}.json`), ...env
+    },
     stdio: ['ignore', 'pipe', 'pipe']
   });
 

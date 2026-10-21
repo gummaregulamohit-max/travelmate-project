@@ -46,9 +46,18 @@ async function searchGoogleFlights({ origin, destination, departureDate, returnD
   try {
     const response = await axios.get(SERPAPI_BASE_URL, { params, timeout: 20000 });
 
+    // Google Flights searched and found nothing: SerpApi still sets `error`
+    // ("Google Flights hasn't returned any results for this query.") but marks
+    // the search state as "Fully empty". That is a genuine live "no flights",
+    // not a failure, so it is returned (as no flights) instead of thrown — a
+    // throw would send the route to the mock generator and show invented flights.
+    if (response.data?.search_information?.flights_results_state === 'Fully empty') {
+      return { ...response.data, best_flights: [], other_flights: [] };
+    }
+
     // SerpApi returns HTTP 200 with an `error` field on the body for bad
-    // requests (invalid API key, unknown airport code, no results, etc.)
-    // rather than a 4xx — check for it explicitly instead of assuming success.
+    // requests (invalid API key, unknown airport code, etc.) rather than a
+    // 4xx — check for it explicitly instead of assuming success.
     if (response.data?.error) {
       console.error('[serpapi] API returned an error:', response.data.error);
       throw new SerpApiError(response.data.error, 502, response.data);
