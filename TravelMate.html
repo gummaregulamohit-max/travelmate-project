@@ -756,7 +756,7 @@
 
   /* Train cards listed on the Compare Prices page. */
   .compare-list .train-result-card { margin: 0; }
-  .compare-list .train-result-card .travi-result-tag { margin-bottom: 4px; }
+  .compare-list .train-result-card .result-tag { margin-bottom: 4px; }
 
   .class-pill-label { font-weight: 600; margin-bottom: 2px; }
   .class-refresh-btn {
@@ -1512,9 +1512,8 @@
     transform: translateY(-2px);
   }
 
-  /* Compare Prices is a full page rather than a pop-up, laid out like the
-     Travi screen: a slim title bar, a side panel on the left (quick actions
-     + always-open Preferences) and one card on the right holding the route
+  /* Compare Prices is a full page rather than a pop-up, with a slim title
+     bar, a side panel on the left (always-open Preferences) and one card on the right holding the route
      header, the scope / route row and the results. The single-mode Search
      Flights / Trains / Buses card reuses the same element as a small dialog
      (.as-dialog, further down). */
@@ -1532,7 +1531,6 @@
     display: flex;
     flex-direction: column;
     background: #f4f7f8;
-    animation: travi-fade-in 0.25s ease;
   }
 
   /* Title bar: ☰ shows / hides the side panel. */
@@ -1566,9 +1564,6 @@
     overflow-y: auto;
     padding: 16px;
   }
-  .compare-side-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid #e5ebee; }
-  .compare-side-chip { background: #fff; border: 1px solid #dde3e6; border-radius: 14px; padding: 5px 10px; font-size: 0.72rem; font-weight: 600; color: #23414b; cursor: pointer; }
-  .compare-side-chip:hover { border-color: #1a5f7a; color: #1a5f7a; background: #f0f8fb; }
   .compare-side-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
   .compare-side-head h4 { margin: 0; font-size: 0.95rem; color: #1a5f7a; }
   .compare-side-link { background: none; border: none; padding: 0; color: #1a5f7a; font-weight: 700; font-size: 0.78rem; cursor: pointer; }
@@ -1930,12 +1925,9 @@
     background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Cdefs%3E%3CclipPath id='c'%3E%3Ccircle cx='18' cy='18' r='18'/%3E%3C/clipPath%3E%3CradialGradient id='g' cx='50%25' cy='22%25' r='65%25'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.55'/%3E%3Cstop offset='.55' stop-color='%23fff' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cg clip-path='url(%23c)'%3E%3Crect width='36' height='12' fill='%23FF9933'/%3E%3Crect y='12' width='36' height='12' fill='%23fff'/%3E%3Crect y='24' width='36' height='12' fill='%23138808'/%3E%3Ccircle cx='18' cy='18' r='4.7' fill='none' stroke='%23000080' stroke-width='.9'/%3E%3Ccircle cx='18' cy='18' r='2' fill='none' stroke='%23000080' stroke-width='4' stroke-dasharray='.14 .384'/%3E%3Ccircle cx='18' cy='18' r='.9' fill='%23000080'/%3E%3Crect width='36' height='36' fill='url(%23g)'/%3E%3C/g%3E%3C/svg%3E");
   }
 
-  /* Cheapest / Fastest tag on a chat result card (Search Results). */
-  .travi-result-tag { display: inline-block; font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #fff; background: #27ae60; border-radius: 3px; padding: 1px 6px; margin-bottom: 4px; }
-  .travi-result-tag.fastest { background: #2481c4; }
-
-  /* Compare Prices rows posted inside the Travi chat. */
-  .travi-compare-card { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; max-width: 640px; background: #fff; }
+  /* Cheapest / Fastest tag on a result card. */
+  .result-tag { display: inline-block; font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #fff; background: #27ae60; border-radius: 3px; padding: 1px 6px; margin-bottom: 4px; }
+  .result-tag.fastest { background: #2481c4; }
 
   .compare-row {
     background: #ffffff;
@@ -2009,381 +2001,6 @@
     border-radius: 50%;
     animation: class-refresh-spin 0.8s linear infinite;
     vertical-align: middle;
-  }
-
-  /* ===================== Travi AI Assistant (Bol-style) ===================== */
-  .travi-launcher {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    height: 52px;
-    padding: 0 22px;
-    border-radius: 26px;
-    background: linear-gradient(135deg, #1a5f7a, #12475c);
-    color: #ffffff;
-    border: none;
-    cursor: pointer;
-    box-shadow: 0 6px 20px rgba(26,95,122,0.45);
-    z-index: 999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
-    font-size: 0.95rem;
-    font-weight: 700;
-    white-space: nowrap;
-    transition: transform 0.2s, box-shadow 0.2s;
-    animation: travi-pulse 2.4s infinite;
-  }
-  .travi-launcher .travi-launcher-sparkle {
-    font-size: 1.1rem;
-    animation: travi-twinkle 1.4s ease-in-out infinite;
-  }
-  .travi-launcher:hover { transform: scale(1.05); box-shadow: 0 8px 24px rgba(26,95,122,0.55); }
-  .travi-launcher.open { display: none; }
-  @keyframes travi-pulse {
-    0% { box-shadow: 0 6px 20px rgba(26,95,122,0.45), 0 0 0 0 rgba(26,95,122,0.35); }
-    70% { box-shadow: 0 6px 20px rgba(26,95,122,0.45), 0 0 0 14px rgba(26,95,122,0); }
-    100% { box-shadow: 0 6px 20px rgba(26,95,122,0.45), 0 0 0 0 rgba(26,95,122,0); }
-  }
-
-  /* Full-screen takeover, matching the Bol "Shop Helper" pattern: the
-     assistant is its own page-like overlay rather than a small popup. */
-  .travi-overlay {
-    position: fixed;
-    inset: 0;
-    background: #ffffff;
-    z-index: 1001;
-    display: none;
-    flex-direction: column;
-    opacity: 0;
-    transform: translateY(16px);
-    transition: opacity 0.2s ease, transform 0.2s ease;
-  }
-  .travi-overlay.open { display: flex; }
-  .travi-overlay.shown { opacity: 1; transform: translateY(0); }
-
-  .travi-header {
-    position: relative;
-    background: #ffffff;
-    border-bottom: 1px solid #e9edf0;
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
-  }
-  .travi-header-icon-btn {
-    background: none;
-    border: none;
-    color: #1a5f7a;
-    font-size: 1.15rem;
-    cursor: pointer;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s;
-  }
-  .travi-header-icon-btn:hover { background: #f0f8fb; }
-  .travi-header-title {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-  }
-  .travi-header-title .name {
-    font-weight: 800;
-    font-size: 1.05rem;
-    color: #1a5f7a;
-    line-height: 1.2;
-  }
-  .travi-header-title .tagline {
-    font-size: 0.7rem;
-    color: #888;
-    margin-top: 1px;
-  }
-  .travi-header-actions { display: flex; gap: 4px; }
-
-  .travi-body {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    padding: 20px 18px 8px;
-  }
-  .travi-body::-webkit-scrollbar { width: 6px; }
-  .travi-body::-webkit-scrollbar-thumb { background: #dfe6e9; border-radius: 3px; }
-
-  /* ---------- Welcome view ---------- */
-  .travi-welcome {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    gap: 6px;
-    padding: 12px 8px 24px;
-  }
-  .travi-welcome.hidden { display: none; }
-  .travi-welcome h1 {
-    font-weight: 800;
-    font-size: 2rem;
-    color: #1a5f7a;
-    margin: 0;
-  }
-  .travi-welcome h2 {
-    font-weight: 600;
-    font-size: 1.2rem;
-    color: #4a90a4;
-    margin: 0 0 18px;
-  }
-  .travi-welcome-chips {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-    max-width: 460px;
-  }
-
-  .travi-chip {
-    background: #ffffff;
-    border: 1.5px solid #d6dfe2;
-    color: #23414b;
-    padding: 9px 16px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .travi-chip:hover { background: #1a5f7a; color: #ffffff; border-color: #1a5f7a; }
-
-  /* ---------- Conversation view ---------- */
-  .travi-messages {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    max-width: 640px;
-    width: 100%;
-    margin: 0 auto;
-    padding-bottom: 12px;
-  }
-
-  .travi-msg-row.user { display: flex; justify-content: flex-end; }
-  .travi-msg-user {
-    background: #eaf4f7;
-    color: #12475c;
-    border-radius: 18px;
-    padding: 10px 16px;
-    font-size: 0.92rem;
-    line-height: 1.4;
-    max-width: 78%;
-  }
-
-  .travi-status-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #888;
-    font-size: 0.88rem;
-  }
-  .travi-sparkle {
-    color: #1a5f7a;
-    font-size: 0.95rem;
-    display: inline-block;
-    animation: travi-twinkle 1.4s ease-in-out infinite;
-  }
-  @keyframes travi-twinkle {
-    0%, 100% { opacity: 0.4; transform: scale(0.9); }
-    50% { opacity: 1; transform: scale(1.1); }
-  }
-
-  .travi-bot-block { max-width: 100%; }
-  .travi-bot-text {
-    color: #222;
-    font-size: 0.92rem;
-    line-height: 1.55;
-    white-space: pre-line;
-  }
-  .travi-bot-text strong { color: #1a5f7a; }
-  .travi-bot-text a { color: #e74c3c; font-weight: 600; }
-
-  .travi-chip-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
-  }
-
-  .travi-feedback-row {
-    display: flex;
-    gap: 14px;
-    margin-top: 10px;
-  }
-  .travi-feedback-btn {
-    background: none;
-    border: none;
-    color: #aab5b9;
-    font-size: 0.95rem;
-    cursor: pointer;
-    padding: 2px;
-    transition: color 0.15s, transform 0.15s;
-  }
-  .travi-feedback-btn:hover { color: #1a5f7a; }
-  .travi-feedback-btn.active.up { color: #27ae60; transform: scale(1.15); }
-  .travi-feedback-btn.active.down { color: #e74c3c; transform: scale(1.15); }
-
-  /* ---------- Inline result cards ---------- */
-  .travi-result-block { margin-top: 4px; }
-  .travi-result-heading {
-    font-weight: 700;
-    font-size: 0.98rem;
-    color: #1a5f7a;
-    margin: 0 0 4px;
-  }
-  .travi-result-desc {
-    font-size: 0.8rem;
-    color: #888;
-    margin: 0 0 12px;
-    line-height: 1.4;
-  }
-  .travi-result-scroll {
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    padding-bottom: 10px;
-    scroll-snap-type: x proximity;
-  }
-  .travi-result-scroll::-webkit-scrollbar { height: 6px; }
-  .travi-result-scroll::-webkit-scrollbar-thumb { background: #dfe6e9; border-radius: 3px; }
-
-  .travi-result-card {
-    flex-shrink: 0;
-    width: 170px;
-    border: 1px solid #e5ebee;
-    border-radius: 12px;
-    background: #ffffff;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    overflow: hidden;
-    scroll-snap-align: start;
-  }
-  .travi-result-card-img {
-    height: 84px;
-    background: linear-gradient(135deg, #eaf4f7, #d9edf5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-    position: relative;
-  }
-  .travi-result-heart {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.9);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.8rem;
-    color: #ccc;
-    cursor: pointer;
-    border: none;
-  }
-  .travi-result-heart.active { color: #e74c3c; }
-  .travi-result-card-body { padding: 10px 12px 12px; }
-  .travi-result-card-title {
-    font-weight: 700;
-    font-size: 0.78rem;
-    color: #23414b;
-    line-height: 1.3;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    min-height: 2.4em;
-  }
-  .travi-result-card-meta {
-    font-size: 0.68rem;
-    color: #888;
-    margin-top: 4px;
-    line-height: 1.35;
-  }
-  .travi-result-price {
-    display: inline-block;
-    margin-top: 8px;
-    background: #e74c3c;
-    color: #ffffff;
-    font-weight: 700;
-    font-size: 0.75rem;
-    padding: 3px 9px;
-    border-radius: 5px;
-  }
-
-  /* ---------- Input bar ---------- */
-  .travi-input-area {
-    flex-shrink: 0;
-    padding: 10px 18px 16px;
-    border-top: 1px solid #eceff1;
-    background: #ffffff;
-  }
-  .travi-input-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    max-width: 640px;
-    margin: 0 auto;
-  }
-  .travi-input {
-    flex: 1;
-    border: 1.5px solid #dde3e6;
-    border-radius: 24px;
-    padding: 12px 18px;
-    font-size: 0.9rem;
-    outline: none;
-    font-family: inherit;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .travi-input:focus { border-color: #1a5f7a; box-shadow: 0 0 0 3px rgba(26,95,122,0.12); }
-  .travi-send-btn {
-    background: #e2e6e8;
-    color: #aab5b9;
-    border: none;
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.05rem;
-    flex-shrink: 0;
-    transition: background 0.2s, color 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .travi-send-btn.active { background: #1a5f7a; color: #ffffff; }
-  .travi-send-btn.active:hover { background: #12475c; }
-  .travi-input-counter {
-    max-width: 640px;
-    margin: 4px auto 0;
-    text-align: right;
-    font-size: 0.66rem;
-    color: #aaa;
-    padding-right: 52px;
-  }
-
-  @media (max-width: 480px) {
-    .travi-launcher { right: 16px; bottom: 16px; }
-    .travi-welcome h1 { font-size: 1.6rem; }
-    .travi-welcome h2 { font-size: 1.05rem; }
-    .travi-input-counter { padding-right: 0; }
   }
 
   /* ===================== Buses — AbhiBus-style flow ===================== */
@@ -3524,8 +3141,8 @@
   function uniMarkLoading(mode) { uniStatus[mode] = 'loading'; uniRefreshModes(); }
   function uniMarkDone(mode) { uniStatus[mode] = 'done'; uniRefreshModes(); }
 
-  // Brings one mode's results into view (used by Travi and the Compare Prices
-  // page, which search a single mode at a time).
+  // Brings one mode's results into view (used by the Compare Prices page,
+  // which searches a single mode at a time).
   function switchTab(mode) {
     const box = document.querySelector(`input[name="preferredMode"][value="${mode}"]`);
     if (box && document.querySelector('input[name="preferredMode"]:checked')) box.checked = true;
@@ -3819,8 +3436,8 @@
     const info = document.getElementById('uniTripInfo');
     info.classList.toggle('show', !!trip);
     info.innerHTML = !trip ? '' : trip === 'domestic'
-      ? '<span class="uni-trip-tag">Domestic trip</span> Both places are in India — Flights, Trains and Buses.'
-      : '<span class="uni-trip-tag international">International trip</span> Flights only — trains and buses don\'t cross borders.';
+      ? '<span class="uni-trip-tag">Domestic trip</span>'
+      : '<span class="uni-trip-tag international">International trip</span>';
 
     document.querySelectorAll('input[name="preferredMode"]').forEach(box => {
       const off = trip === 'international' && box.value !== 'flights';
@@ -3913,7 +3530,7 @@
         document.getElementById('busToInput')._busPoint = bp.to ? { place: to.name, point: bp.to } : null;
       }
       const opts = { quiet: true, exactFrom: uniRoute.exactStation.from, exactTo: uniRoute.exactStation.to };
-      return traviSearchEntities(mode, from, to, uniRoute.date, opts).catch(() => uniMarkDone(mode));
+      return searchEntities(mode, from, to, uniRoute.date, opts).catch(() => uniMarkDone(mode));
     }));
   }
 
@@ -4403,7 +4020,7 @@
       <article class="ab-card ab-card-train train-result-card">
         <div class="ab-card-top">
           <div class="ab-badges">
-            ${opts.tag ? `<span class="travi-result-tag ${opts.tagKind || ''}">${opts.tag}</span>` : ''}
+            ${opts.tag ? `<span class="result-tag ${opts.tagKind || ''}">${opts.tag}</span>` : ''}
             ${t.trainType ? `<span class="train-type-badge ${trainTypeBadgeClass(t.trainType)}">${t.trainType}</span>` : ''}
             ${trainSourceTag(t.source)}
           </div>
@@ -8422,22 +8039,20 @@
 </script>
 
 <!-- ===================== Compare Prices page ===================== -->
-<!-- A full page (not a pop-up), laid out like the Travi screen: quick
-     actions + always-open Preferences on the left, and one card on the right
+<!-- A full page (not a pop-up): always-open Preferences on the left, and one card on the right
      with the route header, the scope / route row and the results. -->
 <div class="compare-overlay" id="compareOverlay" role="dialog" aria-label="Compare prices across travel modes">
   <div class="compare-page">
     <div class="compare-topbar">
       <button type="button" class="compare-topbar-btn" onclick="compareToggleSide()" aria-label="Show or hide the side panel" title="Show or hide the side panel">☰</button>
       <div class="compare-topbar-title">
-        <div class="name">Travi</div>
-        <div class="tagline">TravelMate's AI assistant</div>
+        <div class="name">Compare Prices</div>
+        <div class="tagline">Flights, trains &amp; buses side by side</div>
       </div>
       <span class="compare-topbar-spacer"></span>
     </div>
     <div class="compare-layout">
       <aside class="compare-side" id="compareSide" aria-label="Quick actions and travel preferences">
-        <div class="compare-side-chips" id="compareSideChips"></div>
         <div class="compare-side-head">
           <h4>⚙️ Preferences</h4>
           <button type="button" class="compare-side-link compare-side-reset" onclick="prefReset()">Reset</button>
@@ -8491,300 +8106,23 @@
   </div>
 </div>
 
-<!-- ===================== Travi AI Assistant (Bol Shop Helper-style) ===================== -->
-<div class="travi-overlay" id="traviOverlay" role="dialog" aria-label="Travi AI assistant">
-  <div class="travi-header">
-    <button class="travi-header-icon-btn" title="Menu" aria-label="Menu">☰</button>
-    <div class="travi-header-title">
-      <div class="name">Travi</div>
-      <div class="tagline">TravelMate's AI assistant</div>
-    </div>
-    <div class="travi-header-actions">
-      <button class="travi-header-icon-btn" onclick="restartTravi()" title="New chat" aria-label="New chat">⊕</button>
-      <button class="travi-header-icon-btn" onclick="toggleTravi()" title="Close" aria-label="Close">✕</button>
-    </div>
-  </div>
-
-  <div class="travi-body" id="traviBody">
-    <div class="travi-welcome" id="traviWelcome">
-      <h1>Welcome!</h1>
-      <h2>How can I help you?</h2>
-      <div class="travi-welcome-chips" id="traviWelcomeChips"></div>
-    </div>
-    <div class="travi-messages" id="traviMessages"></div>
-  </div>
-
-  <div class="travi-input-area">
-    <div class="travi-input-bar">
-      <input type="text" class="travi-input" id="traviInput" placeholder="Ask your question" autocomplete="off"
-        oninput="traviOnInputChange()"
-        onkeydown="if(event.key==='Enter'){ event.preventDefault(); traviHandleUserInput(); }">
-      <button class="travi-send-btn" id="traviSendBtn" onclick="traviHandleUserInput()" aria-label="Send">➤</button>
-    </div>
-    <div class="travi-input-counter" id="traviCounter">0 / 1000</div>
-  </div>
-</div>
-
 <script>
-  /* ---------- Travi: TravelMate's built-in AI travel assistant ----------
-     Rule-based intent understanding: it recognises travel mode, source/
-     destination cities (matched against the site's own flight/train/bus
-     directories), and dates from plain text, then drives the existing
-     search form + search functions directly — the same way a real NLU
-     layer would sit on top of this booking engine. */
+  /* ---------- Shared helpers for the search tabs and Compare Prices ---------- */
 
-  let traviOpen = false;
-  let traviConversationStarted = false;
-  const TRAVI_NAME = 'Travi';
   // Windows has no flag emoji (🇮🇳 shows as "IN"), so text drawn into the page
   // swaps it for the round .flag-in image.
   const FLAG_IN_HTML = '<span class="flag-in" role="img" aria-label="India"></span>';
   function flagify(html) { return String(html).replace(/🇮🇳/g, FLAG_IN_HTML); }
 
-  const TRAVI_WELCOME_CHIPS = ['✈️ Search Flights', '🚂 Search Trains', '🚌 Search Buses', '💰 Compare Prices'];
-  const TRAVI_THINKING_PHRASES = ["We'll see what you're looking for.", 'Checking the latest options…', 'Matching you with the right trip…'];
-
-  function toggleTravi() {
-    traviOpen = !traviOpen;
-    const overlay = document.getElementById('traviOverlay');
-    const launcher = document.getElementById('traviLauncher');
-    if (launcher) launcher.classList.toggle('open', traviOpen);
-
-    if (traviOpen) {
-      overlay.classList.add('open');
-      requestAnimationFrame(() => overlay.classList.add('shown'));
-      if (!traviConversationStarted) traviRenderWelcomeChips();
-      document.getElementById('traviInput').focus();
-    } else {
-      overlay.classList.remove('shown');
-      setTimeout(() => overlay.classList.remove('open'), 200);
-    }
-  }
-
-  function traviRenderWelcomeChips() {
-    const el = document.getElementById('traviWelcomeChips');
-    el.innerHTML = TRAVI_WELCOME_CHIPS.map(c => `<button class="travi-chip" onclick="traviChipClick('${c.replace(/'/g, "\\'")}')">${flagify(c)}</button>`).join('');
-  }
-
-  function restartTravi() {
-    document.getElementById('traviMessages').innerHTML = '';
-    document.getElementById('traviWelcome').classList.remove('hidden');
-    traviConversationStarted = false;
-    traviRenderWelcomeChips();
-  }
-
-  // Once the first message goes out, the welcome heading/chips disappear
-  // and the conversation takes over the body — same transition as Bol's
-  // Shop Helper.
-  function traviStartConversationIfNeeded() {
-    if (traviConversationStarted) return;
-    traviConversationStarted = true;
-    document.getElementById('traviWelcome').classList.add('hidden');
-  }
-
-  function traviScrollToBottom() {
-    const body = document.getElementById('traviBody');
-    body.scrollTop = body.scrollHeight;
-  }
-
-  function traviAddUserMessage(text) {
-    traviStartConversationIfNeeded();
-    const messages = document.getElementById('traviMessages');
-    const row = document.createElement('div');
-    row.className = 'travi-msg-row user';
-    row.innerHTML = `<div class="travi-msg-user">${flagify(traviEscape(text))}</div>`;
-    messages.appendChild(row);
-    traviScrollToBottom();
-  }
-
-  // Lightweight "thinking" status line — a sparkle icon plus text that
-  // cycles through a couple of phrases, matching Bol's shimmering status
-  // line rather than a chat-bubble typing indicator.
-  function traviShowStatus(phrases) {
-    const messages = document.getElementById('traviMessages');
-    const row = document.createElement('div');
-    row.className = 'travi-status-row';
-    row.id = 'traviStatusRow';
-    const list = phrases && phrases.length ? phrases : TRAVI_THINKING_PHRASES;
-    row.innerHTML = `<span class="travi-sparkle">✦</span><span id="traviStatusText">${list[0]}</span>`;
-    messages.appendChild(row);
-    traviScrollToBottom();
-
-    let i = 0;
-    const interval = setInterval(() => {
-      i = (i + 1) % list.length;
-      const textEl = document.getElementById('traviStatusText');
-      if (textEl) textEl.textContent = list[i];
-    }, 900);
-    row.dataset.intervalId = interval;
-    return row;
-  }
-
-  function traviHideStatus(row) {
-    if (!row) row = document.getElementById('traviStatusRow');
-    if (!row) return;
-    clearInterval(Number(row.dataset.intervalId));
-    row.remove();
-  }
-
-  // Plain-text bot response: no bubble/avatar, optional follow-up chips,
-  // and thumbs up/down feedback — matching Bol's assistant message style.
-  function traviRespondText(html, chips, delay) {
-    const statusRow = traviShowStatus();
-    setTimeout(() => {
-      traviHideStatus(statusRow);
-      traviStartConversationIfNeeded();
-      const messages = document.getElementById('traviMessages');
-      const block = document.createElement('div');
-      block.className = 'travi-bot-block';
-
-      let inner = `<div class="travi-bot-text">${flagify(html)}</div>`;
-      if (chips && chips.length) {
-        inner += `<div class="travi-chip-row">${chips.map(c => `<button class="travi-chip" onclick="traviChipClick('${c.replace(/'/g, "\\'")}')">${flagify(c)}</button>`).join('')}</div>`;
-      }
-      const feedbackId = 'traviFb' + Math.random().toString(36).slice(2, 9);
-      inner += `<div class="travi-feedback-row" id="${feedbackId}">
-        <button class="travi-feedback-btn up" onclick="traviFeedback('${feedbackId}','up')" aria-label="Helpful">👍</button>
-        <button class="travi-feedback-btn down" onclick="traviFeedback('${feedbackId}','down')" aria-label="Not helpful">👎</button>
-      </div>`;
-
-      block.innerHTML = inner;
-      messages.appendChild(block);
-      traviScrollToBottom();
-    }, delay || 500 + Math.random() * 400);
-  }
-
-  function traviFeedback(rowId, type) {
-    const row = document.getElementById(rowId);
-    if (!row) return;
-    row.querySelectorAll('.travi-feedback-btn').forEach(btn => btn.classList.remove('active'));
-    const btn = row.querySelector('.travi-feedback-btn.' + type);
-    if (btn) btn.classList.add('active');
-  }
-
-  // Inline result cards — the travel equivalent of Bol's horizontally
-  // scrollable product-card carousel, populated from whichever results
-  // array the real search functions just filled (flightSearchResults /
-  // lastTrainResults / liveBuses), so the cards always reflect real (or
-  // demo) data rather than being invented for the chat.
-  function traviRenderResultCards(icon, heading, description, cards) {
-    if (!cards || !cards.length) return;
-    const messages = document.getElementById('traviMessages');
-    const block = document.createElement('div');
-    block.className = 'travi-result-block';
-    block.innerHTML = `
-      <div class="travi-result-heading">${heading}</div>
-      <div class="travi-result-desc">${description}</div>
-      <div class="travi-result-scroll">
-        ${cards.map(c => `
-          <div class="travi-result-card">
-            <div class="travi-result-card-img">
-              ${icon}
-              <button class="travi-result-heart" onclick="this.classList.toggle('active')" aria-label="Save">♥</button>
-            </div>
-            <div class="travi-result-card-body">
-              ${c.tag ? `<span class="travi-result-tag ${c.tagKind || ''}">${c.tag}</span>` : ''}
-              <div class="travi-result-card-title">${traviEscape(c.title)}</div>
-              <div class="travi-result-card-meta">${traviEscape(c.meta)}</div>
-              <div class="travi-result-price">₹${c.price.toLocaleString('en-IN')}</div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-    messages.appendChild(block);
-    traviScrollToBottom();
-  }
-
-  // 12-hour time for the chat result cards, keeping any "(+1)" next-day marker.
-  function traviTime12(t) {
-    if (!t) return '';
-    const nextDay = (String(t).match(/\(\+\d+\)/) || [''])[0];
-    return `${formatTime12hr(String(t))}${nextDay ? ' ' + nextDay : ''}`;
-  }
-
-  // Chat result cards: cheapest first, shorter trip first on equal fares,
-  // then the top 6 — so the best-priced options are always the ones shown.
-  function traviBuildResultCards(mode, limit = 6, items) {
-    let cards;
-    if (mode === 'flights') {
-      cards = (items || flightSearchResults || []).map(f => ({
-        title: `${f.airline} · ${f.flightNumber}`,
-        meta: `${traviTime12(f.departureTime)} → ${traviTime12(f.arrivalTime)} · ${f.duration}` +
-          (f.stops === 0 ? ' · Nonstop' : ` · ${f.stops} stop${f.stops > 1 ? 's' : ''}${f.stopCity ? ' via ' + f.stopCity : ''}`),
-        price: f.price,
-        mins: compareDurationMinutes(f),
-        src: f
-      }));
-    } else if (mode === 'trains') {
-      cards = (items || lastTrainResults || []).map(t => {
-        const classes = (t.classes || []).filter(c => typeof c.fare === 'number');
-        const cheapest = classes.reduce((a, c) => (!a || c.fare < a.fare ? c : a), null);
-        return {
-          title: t.trainNumber ? `${t.trainNumber} · ${t.trainName}` : t.trainName,
-          meta: `${traviTime12(t.departureTime)} → ${traviTime12(t.arrivalTime)} · ${t.duration}` +
-            (cheapest && cheapest.cls ? ` · ${cheapest.cls}${cheapest.status ? ' (' + cheapest.status + ')' : ''}` : ''),
-          price: cheapest ? cheapest.fare : 0,
-          mins: compareDurationMinutes(t),
-          src: t
-        };
-      });
-    } else {
-      cards = (items || liveBuses || []).map(b => ({
-        title: b.operatorName,
-        meta: `${traviTime12(b.departureTime)} → ${traviTime12(b.arrivalTime)} · ${b.duration}` +
-          (b.busType ? ` · ${b.busType}` : '') +
-          (typeof b.seatsAvailable === 'number' ? ` · ${b.seatsAvailable} seats left` : ''),
-        price: b.fare,
-        mins: compareDurationMinutes(b),
-        src: b
-      }));
-    }
-    const dur = c => (c.mins != null ? c.mins : Infinity);
-    return cards
-      .sort((a, b) => a.price !== b.price ? a.price - b.price : dur(a) - dur(b))
-      .slice(0, limit);
-  }
-
-  // "Other" keeps the conversation going and re-offers the Welcome options
-  // (handled in traviProcess).
-  const TRAVI_OTHER_CHIP = '🧭 Other';
-  const TRAVI_EXIT_CHIP = '👋 Exit';
-
-  function traviChipClick(label) {
-    document.getElementById('traviInput').value = label.replace(/^[^\w]+\s*/, '');
-    traviHandleUserInput(label);
-  }
-
-  function traviOnInputChange() {
-    const input = document.getElementById('traviInput');
-    const sendBtn = document.getElementById('traviSendBtn');
-    const counter = document.getElementById('traviCounter');
-    const len = input.value.length;
-    sendBtn.classList.toggle('active', len > 0);
-    counter.textContent = `${len} / 1000`;
-  }
-
-  function traviHandleUserInput(forcedText) {
-    const input = document.getElementById('traviInput');
-    const text = (forcedText || input.value || '').trim();
-    if (!text) return;
-    traviAddUserMessage(text);
-    input.value = '';
-    traviOnInputChange();
-    setTimeout(() => traviProcess(text), 150);
-  }
-
-  function traviEscape(str) {
+  function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
   }
 
-
   /* ---------- Directory lookups (reuses TravelMate's own data) ---------- */
 
-  function traviFindAirport(query) {
+  function findAirport(query) {
     const q = query.toLowerCase().trim();
     if (!q) return null;
     return flightAirports.find(a => a.city.toLowerCase() === q) ||
@@ -8793,7 +8131,7 @@
            null;
   }
 
-  function traviFindStation(query) {
+  function findStation(query) {
     const q = query.toLowerCase().trim();
     if (!q) return null;
     return irctcStations.find(s => (s.city || '').toLowerCase() === q) ||
@@ -8802,7 +8140,7 @@
            null;
   }
 
-  function traviFindBusStop(query) {
+  function findBusStop(query) {
     const q = query.toLowerCase().trim();
     if (!q) return null;
     return busStops.find(s => s.name.toLowerCase() === q) ||
@@ -8811,80 +8149,21 @@
            null;
   }
 
-  /* ---------- Lightweight date parsing ---------- */
+  /* ---------- Dates ---------- */
 
-  const TRAVI_MONTHS = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
-
-  function traviToIso(y, m, d) {
+  function toIsoDate(y, m, d) {
     const dt = new Date(Date.UTC(y, m, d));
     return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
   }
 
-  function traviParseDate(text) {
-    const t = text.toLowerCase();
-    const now = new Date();
-
-    if (/\btoday\b/.test(t)) return traviToIso(now.getFullYear(), now.getMonth(), now.getDate());
-    if (/\btomorrow\b/.test(t)) {
-      const d = new Date(now); d.setDate(d.getDate() + 1);
-      return traviToIso(d.getFullYear(), d.getMonth(), d.getDate());
-    }
-
-    // yyyy-mm-dd
-    let m = t.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
-    if (m) return traviToIso(+m[1], +m[2] - 1, +m[3]);
-
-    // dd/mm/yyyy or dd-mm-yyyy
-    m = t.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
-    if (m) return traviToIso(+m[3], +m[2] - 1, +m[1]);
-
-    // "25 dec" / "25th december" / "dec 25" / "december 25th"
-    const monthPattern = TRAVI_MONTHS.join('|');
-    m = t.match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${monthPattern})[a-z]*\\b`));
-    if (!m) m = t.match(new RegExp(`\\b(${monthPattern})[a-z]*\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`));
-    if (m) {
-      const day = isNaN(+m[1]) ? +m[2] : +m[1];
-      const monthStr = isNaN(+m[1]) ? m[1] : m[2];
-      const monthIdx = TRAVI_MONTHS.indexOf(monthStr.slice(0, 3));
-      if (monthIdx >= 0 && day >= 1 && day <= 31) {
-        let year = now.getFullYear();
-        let candidate = new Date(Date.UTC(year, monthIdx, day));
-        if (candidate.getTime() < Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) year += 1;
-        return traviToIso(year, monthIdx, day);
-      }
-    }
-    return null;
-  }
-
-  /* ---------- Intent handling ---------- */
-
-  function traviDetectMode(t) {
-    if (/\b(flight|flights|fly|plane|air ?fare|airline)\b/.test(t)) return 'flights';
-    if (/\b(train|trains|rail|irctc|pnr)\b/.test(t)) return 'trains';
-    if (/\b(bus|buses|redbus)\b/.test(t)) return 'buses';
-    return null;
-  }
-
-  function traviExtractRoute(t) {
-    let m = t.match(/from\s+([a-z\s]+?)\s+to\s+([a-z\s]+?)(?:\s+on\b|\s+dated\b|\s+for\b|[.,?!]|\s+today|\s+tomorrow|$)/i);
-    if (!m) m = t.match(/\b([a-z]+)\s*(?:->|–|—|-)\s*([a-z]+)\b/i);
-    if (!m) return null;
-    return { from: m[1].trim(), to: m[2].trim() };
-  }
-
-  async function traviFillAndSearch(mode, fromQuery, toQuery, isoDate) {
-    const find = mode === 'flights' ? traviFindAirport : mode === 'trains' ? traviFindStation : traviFindBusStop;
-    const fromEntity = find(fromQuery), toEntity = find(toQuery);
-    if (!fromEntity || !toEntity) {
-      const missing = !fromEntity ? fromQuery : toQuery;
-      return { ok: false, missing };
-    }
-    return traviSearchEntities(mode, fromEntity, toEntity, isoDate);
+  function prettyDate(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   // Fills the mode's search tab with already-resolved airport / station /
   // bus-stop entries and runs the search.
-  async function traviSearchEntities(mode, fromEntity, toEntity, isoDate, opts) {
+  async function searchEntities(mode, fromEntity, toEntity, isoDate, opts) {
     switchTab(mode);
     uniMarkLoading(mode);
 
@@ -8924,7 +8203,7 @@
 
     const chosenDate = isoDate || document.getElementById(dateId).value || (() => {
       const d = new Date(); d.setDate(d.getDate() + 1);
-      return traviToIso(d.getFullYear(), d.getMonth(), d.getDate());
+      return toIsoDate(d.getFullYear(), d.getMonth(), d.getDate());
     })();
     document.getElementById(dateId).value = chosenDate;
 
@@ -8938,443 +8217,54 @@
     return { ok: true, label, date: chosenDate };
   }
 
-  const TRAVI_FAQ = [
-    { keys: [/baggage|luggage|checked bag|carry-?on/], answer:
-      `🎒 <strong>Baggage rules</strong> depend on the operator, but as a general guide:<br>` +
-      `• Flights: most domestic fares include 1 carry-on + 15–25kg checked bag<br>` +
-      `• Trains: no strict limit, but keep it reasonable (~40kg for AC classes)<br>` +
-      `• Buses: usually 1 handbag + 1 bag in the luggage hold, free<br>` +
-      `Always check the "Bags" tag on your specific flight result for exact allowance.` },
-    { keys: [/cancel|refund/], answer:
-      `❌ <strong>Cancellations &amp; refunds:</strong><br>` +
-      `• Flights: refundable per airline fare rules; cancellation fee applies before departure<br>` +
-      `• Trains (IRCTC-style): refund is time-slab based — the earlier you cancel, the higher the refund<br>` +
-      `• Buses: most operators refund 80–100% if cancelled 24h+ before departure<br>` +
-      `Go to "My Bookings" on the site to cancel a specific ticket.` },
-    { keys: [/pnr/], answer:
-      `🔎 I can't check a live PNR right now — this is a demo booking flow — but on IRCTC-style systems your PNR status shows confirmation, seat/berth, and chart preparation status. Once you've booked here, your ticket details show up in "My Bookings".` },
-    { keys: [/offer|discount|coupon|promo/], answer:
-      `🎉 <strong>Current offers:</strong><br>` +
-      `• FIRST100 — ₹100 off your first booking<br>` +
-      `• TRAINSAVE — 10% off train bookings above ₹500<br>` +
-      `• FLYHIGH — Flat ₹500 off international flights<br>` +
-      `Apply the code at checkout.` },
-    { keys: [/human|agent|support|help me|call|contact/], answer:
-      `☎️ You can reach our support team at <a href="tel:+919902227238">+91 9902227238</a>, available round the clock — or keep chatting with me, I'm happy to help with searches and general questions!` },
-    { keys: [/price|fare|cost|cheap/], answer:
-      `💰 Fares change with demand and how far ahead you book. Tell me your route (e.g. "flights from Bengaluru to Goa") and I'll pull up live options with prices for you.` },
-    { keys: [/thank/], answer: `You're welcome! 😊 Anything else I can help you plan?` },
-    { keys: [/^(hi|hello|hey|yo)\b/], answer: `Hello there! 👋 Where would you like to travel today?` },
-    { keys: [/who are you|what are you|your name/], answer:
-      `I'm <strong>Travi</strong>, TravelMate's AI travel assistant — think of me as your personal trip-planning sidekick, similar to how Disha helps out on IRCTC. I can search flights, trains and buses for you right here in chat.` }
-  ];
-
-  function traviMatchFaq(t) {
-    for (const item of TRAVI_FAQ) {
-      if (item.keys.some(re => re.test(t))) return item.answer;
-    }
-    return null;
+  // 12-hour time for result cards, keeping any "(+1)" next-day marker.
+  function time12(t) {
+    if (!t) return '';
+    const nextDay = (String(t).match(/\(\+\d+\)/) || [''])[0];
+    return `${formatTime12hr(String(t))}${nextDay ? ' ' + nextDay : ''}`;
   }
 
-  function traviDetectCompareIntent(t) {
-    return /\bcompare\b|\bcomparison\b|price comparison|cheapest (option|way|mode)/.test(t);
-  }
-
-  const TRAVI_RESULT_ICON = { flights: '✈️', trains: '🚂', buses: '🚌' };
-
-  // Remembers the last searched mode so "search another route" can reopen
-  // the right Search card.
-  let traviLastSearchMode = null;
-
-  function traviAnnounceSearch(mode, result) {
-    traviLastSearchMode = mode;
-    const modeLabel = mode === 'flights' ? 'flights' : mode === 'trains' ? 'trains' : 'buses';
-    const singular = mode === 'flights' ? 'flight' : mode === 'trains' ? 'train' : 'bus';
-    traviRespondText(
-      `Got it! Searching ${modeLabel} from <strong>${result.label.from}</strong> to <strong>${result.label.to}</strong> ` +
-      `on <strong>${result.date}</strong> — here's what I found. 👇`,
-      [`🔁 Search another ${singular} route`, '❌ Cancellation Policy', TRAVI_OTHER_CHIP, TRAVI_EXIT_CHIP],
-      600
-    );
-    const cards = traviBuildResultCards(mode);
-    // Cards follow the intro text; with a random text delay they sometimes
-    // landed above it.
-    setTimeout(() => {
-      traviRenderResultCards(
-        TRAVI_RESULT_ICON[mode],
-        `${modeLabel.charAt(0).toUpperCase() + modeLabel.slice(1)}: ${result.label.from} → ${result.label.to}`,
-        `Top options for ${result.date}, lowest price first. Full results are also open on the ${modeLabel} tab below.`,
-        cards
-      );
-    }, 900);
-  }
-
-  // Called when the person submits a Search Flights / Trains / Buses card.
-  async function traviSearchFromCard(mode, fromEntity, toEntity, isoDate) {
-    const result = await traviSearchEntities(mode, fromEntity, toEntity, isoDate);
-    traviAnnounceSearch(mode, result);
-  }
-
-  /* ---------- Compare Prices as a chat conversation ----------
-     step 'scope'   → waiting for Domestic / International
-     step 'route'   → waiting for "Mumbai to Delhi on 15 Nov"
-     step 'running' → searches in progress
-     step 'done'    → lists shown; "View Flights / Trains / Buses" chips open that tab */
-  let traviCompareFlow = null;
-  const TRAVI_COMPARE_SCOPE_CHIPS = ['🇮🇳 Domestic', '🌍 International'];
-  const TRAVI_MODE_LABEL = { flights: 'Flights', trains: 'Trains', buses: 'Buses' };
-
-  // "Mumbai to Delhi on 15 Nov" — the plain form people type once the chat
-  // has already asked for a route (traviExtractRoute needs "from … to …").
-  function traviExtractLooseRoute(t) {
-    const m = t.match(/(?:^|\bfrom\s+|\bprices?\s+(?:for\s+)?|\bcompare\s+)([a-z][a-z\s]*?)\s+to\s+([a-z][a-z\s]*?)(?:\s+on\b|\s+for\b|\s+dated\b|\s+today|\s+tomorrow|\s+\d|[.,?!]|$)/i);
-    if (!m) return null;
-    const from = m[1].replace(/^.*\b(?:from|prices?|for|compare)\s+/, '').trim();
-    const to = m[2].trim();
-    return from && to ? { from, to } : null;
-  }
-
-  // Immediate plain bot line (no thinking status / feedback) used between
-  // the per-mode result lists.
-  function traviPostNote(html) {
-    const block = document.createElement('div');
-    block.className = 'travi-bot-block';
-    block.innerHTML = `<div class="travi-bot-text">${flagify(html)}</div>`;
-    document.getElementById('traviMessages').appendChild(block);
-    traviScrollToBottom();
-  }
-
-  function traviPrettyDate(iso) {
-    const [y, m, d] = iso.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-  }
-
-  function traviAskCompareRoute(international) {
-    traviRespondText(
-      international
-        ? `🌍 International it is — I'll compare flights. Where are you flying from and to, and when?<br><em>e.g. "Amsterdam to Bengaluru on 31 Oct"</em>`
-        : `🇮🇳 Domestic it is — I'll compare flights, trains &amp; buses. Where are you travelling from and to, and when?<br><em>e.g. "Bengaluru to Hyderabad on 15 Nov"</em>`
-    );
-  }
-
-  // Returns true when the message was part of the compare conversation.
-  async function traviContinueCompare(t) {
-    const f = traviCompareFlow;
-    const leaveFlow = () => { traviCompareFlow = null; return false; };
-
-    if (f.step === 'scope') {
-      const international = /\b(international|abroad|overseas|outside india)\b/.test(t) ? true
-        : /\b(domestic|within india|india)\b/.test(t) ? false : null;
-      if (international === null) {
-        if (traviDetectMode(t) || traviMatchFaq(t)) return leaveFlow();
-        traviRespondText(`Please pick <strong>Domestic</strong> or <strong>International</strong> so I know which modes to compare.`, TRAVI_COMPARE_SCOPE_CHIPS);
-        return true;
-      }
-      f.international = international;
-      if (f.route) await traviRunCompare(f.route, f.isoDate, international);
-      else { f.step = 'route'; traviAskCompareRoute(international); }
-      return true;
+  // Result cards: cheapest first, shorter trip first on equal fares,
+  // then the top 6 — so the best-priced options are always the ones shown.
+  function buildResultCards(mode, limit = 6, items) {
+    let cards;
+    if (mode === 'flights') {
+      cards = (items || flightSearchResults || []).map(f => ({
+        title: `${f.airline} · ${f.flightNumber}`,
+        meta: `${time12(f.departureTime)} → ${time12(f.arrivalTime)} · ${f.duration}` +
+          (f.stops === 0 ? ' · Nonstop' : ` · ${f.stops} stop${f.stops > 1 ? 's' : ''}${f.stopCity ? ' via ' + f.stopCity : ''}`),
+        price: f.price,
+        mins: compareDurationMinutes(f),
+        src: f
+      }));
+    } else if (mode === 'trains') {
+      cards = (items || lastTrainResults || []).map(t => {
+        const classes = (t.classes || []).filter(c => typeof c.fare === 'number');
+        const cheapest = classes.reduce((a, c) => (!a || c.fare < a.fare ? c : a), null);
+        return {
+          title: t.trainNumber ? `${t.trainNumber} · ${t.trainName}` : t.trainName,
+          meta: `${time12(t.departureTime)} → ${time12(t.arrivalTime)} · ${t.duration}` +
+            (cheapest && cheapest.cls ? ` · ${cheapest.cls}${cheapest.status ? ' (' + cheapest.status + ')' : ''}` : ''),
+          price: cheapest ? cheapest.fare : 0,
+          mins: compareDurationMinutes(t),
+          src: t
+        };
+      });
+    } else {
+      cards = (items || liveBuses || []).map(b => ({
+        title: b.operatorName,
+        meta: `${time12(b.departureTime)} → ${time12(b.arrivalTime)} · ${b.duration}` +
+          (b.busType ? ` · ${b.busType}` : '') +
+          (typeof b.seatsAvailable === 'number' ? ` · ${b.seatsAvailable} seats left` : ''),
+        price: b.fare,
+        mins: compareDurationMinutes(b),
+        src: b
+      }));
     }
-
-    if (f.step === 'route') {
-      const route = traviExtractLooseRoute(t) || traviExtractRoute(t);
-      if (!route) {
-        if (traviDetectMode(t) || traviMatchFaq(t)) return leaveFlow();
-        traviRespondText(`Just tell me the route as <em>"From city to To city"</em>, optionally with a date — e.g. <em>"Chennai to Bengaluru on 20 Nov"</em>.`);
-        return true;
-      }
-      await traviRunCompare(route, traviParseDate(t), f.international);
-      return true;
-    }
-
-    if (f.step === 'done') {
-      if (/^\W*preferences?\b/.test(t)) {
-        openPreferences();
-        return true;
-      }
-      if (/^\W*(modify|change|edit)\b/.test(t)) {
-        // Results came from the Compare Prices page: reopen it with the
-        // route form in focus; Search Results updates the page and the chat.
-        if (f.fromCard && compareState && !compareState.needsRouteInput && !compareState.searchMode) {
-          compareShowPage();
-          compareModifyRoute();
-          traviRespondText(`Sure! ✏️ Change <strong>From</strong>, <strong>To</strong> or the date at the top of the comparison page and tap <strong>Search Results</strong> — your current results stay there until you do, and I'll post the updated prices here too.`);
-          return true;
-        }
-        f.step = 'route';
-        traviRespondText(
-          `Sure — currently <strong>${traviEscape(f.route.from)} → ${traviEscape(f.route.to)}</strong> on <strong>${traviPrettyDate(f.date)}</strong>. ` +
-          `Tell me the new From and To (and date, if it changes) — e.g. <em>"${traviEscape(f.route.from)} to Mysuru"</em> — and I'll update the prices.`
-        );
-        return true;
-      }
-      const m = t.match(/^\W*(?:view|show|book)\s+(?:the\s+)?(flight|train|bus)/);
-      if (m) {
-        traviCompareView(m[1] === 'flight' ? 'flights' : m[1] === 'train' ? 'trains' : 'buses');
-        return true;
-      }
-    }
-
-    return leaveFlow();
-  }
-
-  // The search already filled that mode's tab, so just close the chat and show it.
-  function traviCompareView(mode) {
-    if (traviOpen) toggleTravi();
-    switchTab(mode);
-    document.getElementById(mode).scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  // Same rows as the Compare Prices page (cheapest first, Best Price tag,
-  // View Results), posted inline in the chat after the per-mode lists.
-  function traviRenderCompareCard(modes, summary, cheapest) {
-    const rank = m => summary[m] ? [summary[m].price, summary[m].mins ?? Infinity] : [Infinity, Infinity];
-    const rows = [...modes].sort((a, b) => {
-      const [pa, da] = rank(a), [pb, db] = rank(b);
-      return pa !== pb ? pa - pb : da - db;
-    }).map(m => {
-      const s = summary[m];
-      const head = `<div class="compare-mode-icon">${COMPARE_ICON[m]}</div>`;
-      if (!s) {
-        return `<div class="compare-row unavailable">${head}
-          <div class="compare-mode-info"><div class="compare-mode-name">${COMPARE_LABEL[m]}</div>
-          <div class="compare-mode-detail">Not available on this route</div></div></div>`;
-      }
-      const detail = `${traviEscape(s.route)}${s.mins != null ? ` · Shortest ${compareFormatDuration(s.mins)}` : ''} · ${s.estimated ? 'Estimated fare' : s.source === 'demo' ? 'Demo fare' : 'Listed fare'}`;
-      return `<div class="compare-row${m === cheapest && modes.length > 1 ? ' best' : ''}">${head}
-        <div class="compare-mode-info"><div class="compare-mode-name">${COMPARE_LABEL[m]}</div>
-        <div class="compare-mode-detail">${detail}</div></div>
-        <div class="compare-price-block">
-          <div class="compare-price">₹${s.price.toLocaleString('en-IN')} <span class="unit">onwards</span></div>
-          ${s.estimated ? '' : `<button class="compare-view-btn" onclick="traviCompareView('${m}')">View Results</button>`}
-        </div>
-        ${m === cheapest && modes.length > 1 ? '<div class="compare-best-badge">💰 Best Price</div>' : ''}
-      </div>`;
-    }).join('');
-
-    const block = document.createElement('div');
-    block.className = 'travi-result-block';
-    block.innerHTML = `<div class="travi-result-heading">💰 Price comparison</div><div class="travi-compare-card">${rows}</div>`;
-    document.getElementById('traviMessages').appendChild(block);
-    traviScrollToBottom();
-  }
-
-  async function traviRunCompare(route, isoDate, international) {
-    const modes = international ? ['flights'] : ['flights', 'trains', 'buses'];
-    const pairs = {};
-    modes.forEach(m => {
-      let from, to;
-      if (m === 'flights') {
-        from = traviFindAirport(route.from); to = traviFindAirport(route.to);
-        if (!international && [from, to].some(a => a && a.country !== 'India')) from = to = null;
-      } else if (m === 'trains') {
-        from = traviFindStation(route.from); to = traviFindStation(route.to);
-      } else {
-        from = compareBusStopFor(route.from); to = compareBusStopFor(route.to);
-      }
-      pairs[m] = from && to && from.code !== to.code ? { from, to } : null;
-    });
-
-    // Buses accept any place name, so only trust them on their own when at
-    // least one end is a place the app actually knows.
-    const knownBusPlace = traviFindBusStop(route.from) || traviFindBusStop(route.to);
-    if (!pairs.flights && !pairs.trains && !(pairs.buses && knownBusPlace)) {
-      traviCompareFlow.step = 'route';
-      traviRespondText(
-        `Hmm, I couldn't match "<strong>${traviEscape(route.from)}</strong>" and "<strong>${traviEscape(route.to)}</strong>" ` +
-        `${international ? 'to airports' : 'in our flight, train or bus directories'}. Could you try a bigger nearby city, or check the spelling?`
-      );
-      return;
-    }
-
-    await traviRunComparePairs(pairs, isoDate, international);
-  }
-
-  // Posts the per-mode lists + comparison card for already-resolved
-  // { from, to } pairs — shared by the typed chat flow and the Compare
-  // Prices page's Search Results button (compareSubmitRouteForm).
-  async function traviRunComparePairs(pairs, isoDate, international, fromCard) {
-    const modes = international ? ['flights'] : ['flights', 'trains', 'buses'];
-    const date = isoDate || (() => {
-      const d = new Date(); d.setDate(d.getDate() + 1);
-      return traviToIso(d.getFullYear(), d.getMonth(), d.getDate());
-    })();
-    const anchor = pairs.flights || pairs.trains || pairs.buses;
-    if (!anchor) return;
-    const placeName = e => e.city || e.name;
-    const fromLabel = placeName(anchor.from), toLabel = placeName(anchor.to);
-    const bothIndian = pairs.flights && pairs.flights.from.country === 'India' && pairs.flights.to.country === 'India';
-
-    traviCompareFlow = { step: 'running' };
-    traviRespondText(
-      `Comparing ${international ? 'flights' : 'flights, trains &amp; buses'} from <strong>${traviEscape(fromLabel)}</strong> to ` +
-      `<strong>${traviEscape(toLabel)}</strong> on <strong>${traviPrettyDate(date)}</strong> — here's what I found. 👇` +
-      (international && bothIndian ? `<br><small>Both cities are in India — pick Domestic next time to see trains &amp; buses too.</small>` : ''),
-      null, 500
-    );
-    await new Promise(r => setTimeout(r, 650));
-
-    const summary = {};
-    for (const m of modes) {
-      const icon = TRAVI_RESULT_ICON[m], label = TRAVI_MODE_LABEL[m];
-      const pair = pairs[m];
-      if (!pair) {
-        traviPostNote(`${icon} <strong>${label}:</strong> not available on this route.`);
-        continue;
-      }
-      await traviSearchEntities(m, pair.from, pair.to, date, { quiet: true });
-      const cards = traviBuildResultCards(m);
-      const priced = cards.filter(c => c.price > 0);
-      if (priced.length) {
-        traviRenderResultCards(
-          icon,
-          `${label}: ${placeName(pair.from)} → ${placeName(pair.to)}`,
-          `${cards.length} cheapest option${cards.length > 1 ? 's' : ''} · from ₹${priced[0].price.toLocaleString('en-IN')}`,
-          cards
-        );
-        // Shortest trip across every result the search returned, not just
-        // the six cheapest shown — same basis as the Compare Prices card.
-        const all = m === 'flights' ? flightSearchResults : m === 'trains' ? lastTrainResults : liveBuses;
-        const source = m === 'flights' && flightSearchResults === flightRoutes[`${pair.from.code}->${pair.to.code}`] ? 'demo' : 'listed';
-        summary[m] = { price: priced[0].price, mins: compareShortest(all), source, route: `${placeName(pair.from)} → ${placeName(pair.to)}` };
-      } else if (m === 'trains') {
-        // No real trains for this pair — say so instead of guessing a fare.
-        traviPostNote(`${icon} <strong>${label}:</strong> no trains found between these stations.`);
-      } else {
-        const est = compareEstimateFare(m, pair.from.code, pair.to.code, international);
-        traviPostNote(`${icon} <strong>${label}:</strong> no listed ${m} on this date — estimated fare around <strong>₹${est.toLocaleString('en-IN')}</strong>.`);
-        summary[m] = { price: est, mins: null, estimated: true, route: `${placeName(pair.from)} → ${placeName(pair.to)}` };
-      }
-    }
-
-    compareListsKey = compareListsKeyFor(pairs, date, modes);
-    traviLastCompare = { pairs, date, international: !!international, fromName: fromLabel, toName: toLabel };
-
-    const found = Object.keys(summary);
-    const cheapest = found.slice().sort((a, b) => summary[a].price - summary[b].price || (summary[a].mins ?? Infinity) - (summary[b].mins ?? Infinity))[0];
-    const timed = found.filter(m => summary[m].mins != null).sort((a, b) => summary[a].mins - summary[b].mins);
-    traviRenderCompareCard(modes, summary, cheapest);
-    let wrap = '';
-    if (cheapest) {
-      wrap += `💡 <strong>Cheapest:</strong> ${TRAVI_RESULT_ICON[cheapest]} ${TRAVI_MODE_LABEL[cheapest]} from ₹${summary[cheapest].price.toLocaleString('en-IN')}` +
-        `${summary[cheapest].estimated ? ' (estimated)' : ''}<br>`;
-    }
-    if (timed.length && modes.length > 1) {
-      wrap += `⚡ <strong>Fastest:</strong> ${TRAVI_RESULT_ICON[timed[0]]} ${TRAVI_MODE_LABEL[timed[0]]} · ${compareFormatDuration(summary[timed[0]].mins)}<br>`;
-    }
-    wrap += `What would you like to do next?`;
-
-    traviCompareFlow = { step: 'done', international, route: { from: fromLabel, to: toLabel }, date, fromCard: !!fromCard };
-    traviRespondText(
-      wrap,
-      [...found.filter(m => !summary[m].estimated).map(m => `${TRAVI_RESULT_ICON[m]} View ${TRAVI_MODE_LABEL[m]}`),
-        '⚙️ Preferences', '✏️ Modify', '🔁 Compare another route', TRAVI_OTHER_CHIP, TRAVI_EXIT_CHIP],
-      400
-    );
-    return summary;
-  }
-
-  async function traviProcess(rawText) {
-    const t = rawText.toLowerCase();
-
-    if (/^\W*other\W*$/.test(t)) {
-      traviCompareFlow = null;
-      traviRespondText(`Sure! What else can I help you with?`, TRAVI_WELCOME_CHIPS);
-      return;
-    }
-
-    if (/^\W*(exit|quit|bye|good ?bye|end( the)? chat)\W*$/.test(t)) {
-      traviCompareFlow = null;
-      traviRespondText(`Thank you for choosing TravelMate! I hope you have a comfortable journey and a wonderful day ahead.`);
-      return;
-    }
-
-    const compareIntentDetected = traviDetectCompareIntent(t);
-    const anotherRoute = /\b(another|new|different)\s+route\b/.test(t);
-    const mode = traviDetectMode(t) || (anotherRoute && !compareIntentDetected ? traviLastSearchMode : null);
-    const route = traviExtractRoute(t);
-    const isoDate = traviParseDate(t);
-
-    if (traviCompareFlow && !compareIntentDetected && await traviContinueCompare(t)) return;
-
-    // Compare Prices runs as a chat conversation: scope → route → per-mode
-    // lists → next-step chips (see traviContinueCompare / traviRunCompare).
-    // Plain "Compare Prices": pick scope and route on the comparison page;
-    // Search Results then shows the results there and here in the chat as text.
-    if (compareIntentDetected && !(route || traviExtractLooseRoute(t))) {
-      traviCompareFlow = null;
-      openComparePricesEmpty();
-      traviRespondText(
-        `Sure! 💰 Pick <strong>Domestic</strong> or <strong>International</strong> on the comparison page, then enter your route and date. ` +
-        `Once you tap <strong>Search Results</strong>, I'll post the flight, train &amp; bus options here too.`
-      );
-      return;
-    }
-
-    // A route was typed along with it ("compare prices from Mumbai to Goa") —
-    // carry on in chat text.
-    if (compareIntentDetected) {
-      traviCompareFlow = { step: 'scope', route: route || traviExtractLooseRoute(t), isoDate };
-      traviRespondText(
-        `Sure! Let's compare prices. 💰 Is this trip <strong>domestic</strong> or <strong>international</strong>?<br>` +
-        `• Domestic — I'll compare flights, trains &amp; buses<br>` +
-        `• International — flights only (trains &amp; buses here don't cross borders)`,
-        TRAVI_COMPARE_SCOPE_CHIPS
-      );
-      return;
-    }
-
-    if (mode && route) {
-      const result = await traviFillAndSearch(mode, route.from, route.to, isoDate);
-      if (result.ok) {
-        traviAnnounceSearch(mode, result);
-      } else {
-        traviRespondText(
-          `Hmm, I couldn't find "<strong>${traviEscape(result.missing)}</strong>" in our ${mode} network. Could you try a bigger nearby city, or check the spelling?`,
-          ['✈️ Search Flights', '🚂 Search Trains', '🚌 Search Buses']
-        );
-      }
-      return;
-    }
-
-    if (mode && !route) {
-      openSearchCard(mode);
-      traviRespondText(
-        mode === 'flights'
-          ? `Sure! I've opened the flight search card — pick <strong>Domestic</strong> or <strong>International</strong> first, then enter your route and travel date. ✈️`
-          : `Sure! I've opened the ${mode === 'trains' ? 'train' : 'bus'} search card — enter your route and travel date there. ${TRAVI_RESULT_ICON[mode]}`,
-        []
-      );
-      return;
-    }
-
-    if (route && !mode) {
-      traviRespondText(
-        `Got the route <strong>${traviEscape(route.from)} → ${traviEscape(route.to)}</strong> — should I search this by flight, train, or bus?`,
-        ['✈️ Flight', '🚂 Train', '🚌 Bus']
-      );
-      return;
-    }
-
-    if (anotherRoute) {
-      traviRespondText(`Sure! How would you like to travel?`, ['✈️ Search Flights', '🚂 Search Trains', '🚌 Search Buses']);
-      return;
-    }
-
-    const faqAnswer = traviMatchFaq(t);
-    if (faqAnswer) {
-      traviRespondText(faqAnswer);
-      return;
-    }
-
-    traviRespondText(
-      `I didn't quite catch that. I'm best at things like:<br>` +
-      `• <em>"flights from Mumbai to Delhi tomorrow"</em><br>` +
-      `• <em>"train from Chennai to Bengaluru on 15 Jan"</em><br>` +
-      `• baggage, cancellation, offers, or support queries<br>` +
-      `What would you like to do?`,
-      ['✈️ Search Flights', '🚂 Search Trains', '🚌 Search Buses', TRAVI_EXIT_CHIP]
-    );
+    const dur = c => (c.mins != null ? c.mins : Infinity);
+    return cards
+      .sort((a, b) => a.price !== b.price ? a.price - b.price : dur(a) - dur(b))
+      .slice(0, limit);
   }
 </script>
 
@@ -9429,8 +8319,8 @@
 
   function compareResolveEntity(mode, cityName) {
     if (!cityName) return null;
-    if (mode === 'flights') return traviFindAirport(cityName);
-    if (mode === 'trains') return traviFindStation(cityName);
+    if (mode === 'flights') return findAirport(cityName);
+    if (mode === 'trains') return findStation(cityName);
     return compareBusStopFor(cityName);
   }
 
@@ -9441,7 +8331,7 @@
   function compareBusStopFor(cityName) {
     const name = (cityName || '').trim();
     if (!name) return null;
-    const known = busStops.find(s => s.name.toLowerCase() === name.toLowerCase()) || traviFindBusStop(name);
+    const known = busStops.find(s => s.name.toLowerCase() === name.toLowerCase()) || findBusStop(name);
     if (known) return known;
     const stop = { code: `X-${name.toUpperCase().replace(/[^A-Z0-9]+/g, '')}`, name, type: 'City' };
     busStops.push(stop);
@@ -9693,54 +8583,14 @@
     // Domestic or International themselves.
     renderCompareRouteForm(compareState);
     compareLockForm(true);
-    compareSetHeader(compareRouteTitle(), `Comparing fares for ${traviPrettyDate(date)}`);
-    compareClearResults(COMPARE_PICK_SCOPE_HINT);
-    compareShowPage();
-  }
-
-  // Single-mode version, opened from Travi's "Search Flights / Trains /
-  // Buses" chips as a small dialog. Flights can be domestic or
-  // international, so that question is asked first; trains and buses are
-  // domestic-only, so the dialog goes straight to the From/To/Date form.
-  function openSearchCard(mode) {
-    compareResetCardChrome();
-    document.getElementById('compareTopActions').style.display = 'none'; // compare-only actions
-    document.getElementById('compareOverlay').classList.add('search-mode');
-    compareState = { fromCode: null, toCode: null, fromCityName: null, toCityName: null, date: null, initiatingMode: null, international: null, routeScope: null, resolved: {}, needsRouteInput: true, searchMode: mode };
-
-    renderCompareRouteForm();
-    compareClearResults('');
-    compareShowPage();
-
-    if (mode === 'flights') {
-      compareSetHeader(`Search ${COMPARE_LABEL[mode]}`, 'Pick a scope, then enter your route');
-      document.getElementById('compareScopeHintDomestic').textContent = 'Within India';
-      document.getElementById('compareScopeHintInternational').textContent = 'Worldwide';
-      compareLockForm(true);
-    } else {
-      compareSetHeader(`Search ${COMPARE_LABEL[mode]}`, 'Enter your route and travel date');
-      document.getElementById('compareScopeSelect').style.display = 'none';
-      compareRenderForScope(false);
-    }
-  }
-
-  // Opens the comparison page with no route yet — used when the person just
-  // says "compare prices" without naming a route. Domestic/International is
-  // asked first; once they answer, the From/To/Date row unlocks.
-  function openComparePricesEmpty() {
-    compareResetCardChrome();
-    compareState = { fromCode: null, toCode: null, fromCityName: null, toCityName: null, date: null, initiatingMode: null, international: null, routeScope: null, resolved: {}, needsRouteInput: true, routeEnteredInCard: true };
-
-    renderCompareRouteForm();
-    compareLockForm(true);
-    compareSetHeader('Compare Prices', 'Pick a scope, then enter your route');
+    compareSetHeader(compareRouteTitle(), `Comparing fares for ${prettyDate(date)}`);
     compareClearResults(COMPARE_PICK_SCOPE_HINT);
     compareShowPage();
   }
 
   // Builds the From/To/Date row that stays at the top of the page. Reuses
-  // the same city-matching Travi already uses elsewhere, so "Bengaluru" /
-  // "Hyderabad" etc. resolve the same way they would from typed chat text.
+  // the shared city matching, so "Bengaluru" / "Hyderabad" etc. resolve the
+  // same way everywhere.
   // `route` (optional) pre-fills it.
   function renderCompareRouteForm(route) {
     const comboHtml = (id) => `
@@ -10052,9 +8902,9 @@
     // own directory (so "Markapur Road (MRK)" stays MRK) and by its city
     // name in the others; hand-typed text falls back to free-text matching.
     const candidates = [
-      { mode: 'flights', find: traviFindAirport, list: flightAirports },
-      { mode: 'trains', find: traviFindStation, list: irctcStations },
-      { mode: 'buses', find: traviFindBusStop, list: busStops }
+      { mode: 'flights', find: findAirport, list: flightAirports },
+      { mode: 'trains', find: findStation, list: irctcStations },
+      { mode: 'buses', find: findBusStop, list: busStops }
     ].filter(c => !compareState.international || c.mode === 'flights')
      .filter(c => !compareState.searchMode || c.mode === compareState.searchMode);
     const preferredMode = (fromSel && fromSel.mode) || (toSel && toSel.mode);
@@ -10101,27 +8951,7 @@
     compareState.formFrom = fromInput.value;
     compareState.formTo = toInput.value;
 
-    compareSetHeader(compareRouteTitle(), `Comparing fares for ${traviPrettyDate(dateVal)}`);
-
-    // Opened from Travi: post the same comparison in the chat as text too,
-    // and price the page from those very searches so both show the same fares.
-    if (traviOpen) {
-      const international = compareState.international;
-      compareRenderForScope(international, async resolved => {
-        const pairs = {};
-        Object.entries(resolved).forEach(([m, p]) => {
-          pairs[m] = p && p.from && p.to && p.from.code !== p.to.code ? { from: p.from, to: p.to } : null;
-        });
-        const summary = (await traviRunComparePairs(pairs, dateVal, international, true)) || {};
-        const prices = {};
-        Object.keys(pairs).forEach(m => {
-          const s = summary[m];
-          prices[m] = s ? { price: s.price, duration: s.mins, source: s.estimated ? 'estimated' : s.source } : null;
-        });
-        return prices;
-      });
-      return;
-    }
+    compareSetHeader(compareRouteTitle(), `Comparing fares for ${prettyDate(dateVal)}`);
 
     compareRenderForScope(compareState.international);
   }
@@ -10143,8 +8973,7 @@
   // is what decides which modes get compared, nothing is pre-guessed.
   // `priceProvider(resolved)` (optional) supplies the fares as
   // { mode: { price, duration, source } | null } instead of looking them up
-  // here — used when Travi has just searched the same route, so the page
-  // and the chat lists show the same numbers.
+  // here — used by Go Back to restore the fares already shown.
   async function compareRenderForScope(international, priceProvider) {
     if (!compareState) return;
     const state = compareState;
@@ -10169,8 +8998,8 @@
     const { fromCode, toCode, fromCityName, toCityName, date, initiatingMode } = state;
     const modesToShow = international ? ['flights'] : ['flights', 'trains', 'buses'];
 
-    // `presetResolved` carries pairs Travi already resolved in the chat
-    // (see compareAdoptCtx), so the page prices exactly the same places.
+    // `presetResolved` carries pairs already resolved for this route (set by
+    // Go Back), so the page prices exactly the same places.
     const preset = state.presetResolved;
     state.presetResolved = null;
     const resolved = {};
@@ -10200,7 +9029,7 @@
 
     compareClearResults(`
       <div class="compare-modify-bar">
-        <span><strong>${traviEscape(fromCityName || fromCode)}</strong> → <strong>${traviEscape(toCityName || toCode)}</strong>${date ? ' · ' + traviPrettyDate(date) : ''}</span>
+        <span><strong>${escapeHtml(fromCityName || fromCode)}</strong> → <strong>${escapeHtml(toCityName || toCode)}</strong>${date ? ' · ' + prettyDate(date) : ''}</span>
       </div>` + modesToShow.map(m => compareRowSkeleton(m, resolved[m])).join(''));
     prefLoading = true;
     prefRender();
@@ -10248,20 +9077,12 @@
       resolved: { [mode]: { from: fromEntity, to: toEntity } }, prices: null, pendingMode: mode, pendingPrefs: null,
       formFrom: document.getElementById('compareFromInput').value, formTo: document.getElementById('compareToInput').value
     });
-    compareSetHeader(`${COMPARE_LABEL[mode]}: ${compareRouteTitle()}`, `Every ${mode === 'buses' ? 'bus' : mode.slice(0, -1)} for ${traviPrettyDate(date)}`);
+    compareSetHeader(`${COMPARE_LABEL[mode]}: ${compareRouteTitle()}`, `Every ${mode === 'buses' ? 'bus' : mode.slice(0, -1)} for ${prettyDate(date)}`);
     compareClearResults('');
     prefLoading = true;
     prefRender();
     await compareLoadLists(superseded);
     if (superseded()) return;
-
-    // Opened from the Travi chat: post the same results there too.
-    if (traviOpen) {
-      traviAnnounceSearch(mode, {
-        label: mode === 'flights' ? { from: fromEntity.city, to: toEntity.city } : { from: fromEntity.name, to: toEntity.name },
-        date
-      });
-    }
   }
 
   function compareScopeChanged() {
@@ -10357,7 +9178,7 @@
           '<p class="compare-waiting-note"><span class="compare-spinner"></span> Loading every option for this route…</p>';
         for (const m of modes) {
           if (!prefUsable(m)) continue;
-          await traviSearchEntities(m, ctx.pairs[m].from, ctx.pairs[m].to, ctx.date, { quiet: true });
+          await searchEntities(m, ctx.pairs[m].from, ctx.pairs[m].to, ctx.date, { quiet: true });
           if (superseded()) return;
         }
         compareListsKey = key;
@@ -10365,7 +9186,6 @@
       prefLoading = false;
       prefState = compareState.pendingPrefs || prefFreshState(compareState.pendingMode || compareDefaultMode(modes));
       compareState.pendingPrefs = null;
-      traviLastCompare = ctx;
       prefRender();
       compareRenderList();
       compareSyncBack();
@@ -10449,18 +9269,18 @@
     const el = document.getElementById('compareList');
     if (!prefCtx || !prefState) { el.innerHTML = ''; return; }
     const mode = prefState.mode;
-    const icon = TRAVI_RESULT_ICON[mode], label = TRAVI_MODE_LABEL[mode];
+    const icon = COMPARE_ICON[mode], label = COMPARE_LABEL[mode];
 
     document.querySelectorAll('#compareBody .compare-row').forEach(row => {
       row.classList.toggle('selected', row.id === `compareRow-${mode}`);
     });
 
     const raw = prefUsable(mode) ? prefRawList(mode) : [];
-    const total = traviBuildResultCards(mode, Infinity, raw).filter(c => c.price > 0).length;
+    const total = buildResultCards(mode, Infinity, raw).filter(c => c.price > 0).length;
     const sorts = COMPARE_SORTS.filter(s => s.modes.includes(mode));
     if (!sorts.some(s => s.key === compareSort)) compareSort = 'relevance';
     const cards = compareSortCards(mode,
-      traviBuildResultCards(mode, Infinity, raw.filter(item => prefMatches(mode, item))).filter(c => c.price > 0), compareSort);
+      buildResultCards(mode, Infinity, raw.filter(item => prefMatches(mode, item))).filter(c => c.price > 0), compareSort);
     const sortHint = COMPARE_SORT_HINT[compareSort];
 
     const byTime = c => (c.mins != null ? c.mins : Infinity);
@@ -10470,14 +9290,14 @@
     if (fastest && fastest !== cheapest) Object.assign(fastest, { tag: '⚡ Fastest', tagKind: 'fastest' });
     else if (fastest) cheapest.tag = '💰 Cheapest · ⚡ Fastest';
 
-    const count = !total ? `No listed ${mode} on ${traviPrettyDate(prefCtx.date)}`
+    const count = !total ? `No listed ${mode} on ${prettyDate(prefCtx.date)}`
       : cards.length === total ? `${total} option${total === 1 ? '' : 's'} · ${sortHint}`
       : `${cards.length} of ${total} match your preferences · ${sortHint}`;
 
     let html = `
       <div class="compare-list-head">
         <div>
-          <h4>${icon} ${label}: ${traviEscape(prefCtx.fromName)} → ${traviEscape(prefCtx.toName)}</h4>
+          <h4>${icon} ${label}: ${escapeHtml(prefCtx.fromName)} → ${escapeHtml(prefCtx.toName)}</h4>
           <span class="compare-list-count">${count}</span>
         </div>
         ${total ? `<button type="button" class="compare-side-link" onclick="compareOpenTab('${mode}')">Book on the ${label} tab →</button>` : ''}
@@ -10512,9 +9332,9 @@
         <div class="compare-result">
           <div class="compare-mode-icon">${icon}</div>
           <div class="compare-result-info">
-            ${c.tag ? `<span class="travi-result-tag ${c.tagKind || ''}">${c.tag}</span>` : ''}
-            <div class="compare-result-title">${traviEscape(c.title)}</div>
-            <div class="compare-result-meta">${traviEscape(c.meta)}</div>
+            ${c.tag ? `<span class="result-tag ${c.tagKind || ''}">${c.tag}</span>` : ''}
+            <div class="compare-result-title">${escapeHtml(c.title)}</div>
+            <div class="compare-result-meta">${escapeHtml(c.meta)}</div>
           </div>
           <div class="compare-result-price">₹${c.price.toLocaleString('en-IN')}</div>
         </div>`).join('');
@@ -10559,8 +9379,6 @@
   ];
   const PREF_STOPS = [{ key: '0', label: 'Nonstop' }, { key: '1', label: '1 Stop' }, { key: '2', label: '2+ Stops' }];
 
-  // Last compared route (set by every comparison) — what Preferences filters.
-  let traviLastCompare = null;
   let prefCtx = null;
   let prefState = null;
   let prefLoading = false;
@@ -10609,24 +9427,6 @@
     };
   }
 
-  // "⚙️ Preferences" in the chat: Preferences are a panel on the Compare
-  // Prices page, so bring that page up for the route in question and point
-  // at the panel.
-  function openPreferences(ctx) {
-    ctx = ctx || traviLastCompare || compareCtxFromState();
-    if (!ctx) {
-      traviRespondText(`Let's compare a route first — then I can filter it by your preferences. 💰`, ['💰 Compare Prices']);
-      return;
-    }
-    const modes = ctx.international ? ['flights'] : ['flights', 'trains', 'buses'];
-    const cur = compareCtxFromState();
-    const onPage = cur && cur.international === ctx.international &&
-      compareListsKeyFor(cur.pairs, cur.date, modes) === compareListsKeyFor(ctx.pairs, ctx.date, modes);
-    if (!onPage && !compareAdoptCtx(ctx)) return;
-    compareShowPage();
-    compareShowPreferences();
-  }
-
   // "⚙️ Preferences" button: the panel is always there on the left — make
   // sure it is showing and point at it.
   function compareShowPreferences() {
@@ -10648,33 +9448,6 @@
       return;
     }
     compareSubmitRouteForm();
-  }
-
-  // A quick-action chip in the side panel: hand over to the Travi chat.
-  function compareSideChip(label) {
-    closeComparePrices();
-    if (!traviOpen) toggleTravi();
-    traviChipClick(label);
-  }
-  document.getElementById('compareSideChips').innerHTML = TRAVI_WELCOME_CHIPS
-    .map(c => `<button type="button" class="compare-side-chip" onclick="compareSideChip('${c.replace(/'/g, "\\'")}')">${flagify(c)}</button>`).join('');
-
-  // Shows a route Travi compared in the chat on the Compare Prices page.
-  function compareAdoptCtx(ctx) {
-    const anchor = ['flights', 'trains', 'buses'].find(m => { const p = ctx.pairs[m]; return p && p.from && p.to; });
-    if (!anchor) return false;
-    const pair = ctx.pairs[anchor];
-    compareResetCardChrome();
-    compareState = {
-      fromCode: pair.from.code, toCode: pair.to.code, fromCityName: ctx.fromName, toCityName: ctx.toName,
-      date: ctx.date, initiatingMode: anchor, international: ctx.international, routeScope: null,
-      resolved: {}, needsRouteInput: false, routeEnteredInCard: true, presetResolved: ctx.pairs
-    };
-    document.getElementById(ctx.international ? 'compareScopeInternational' : 'compareScopeDomestic').checked = true;
-    renderCompareRouteForm(compareState);
-    compareSetHeader(compareRouteTitle(), `Comparing fares for ${traviPrettyDate(ctx.date)}`);
-    compareRenderForScope(ctx.international);
-    return true;
   }
 
   function compareFlash(el) {
@@ -10702,9 +9475,9 @@
 
   function prefCheck(group, value, label, count, extra) {
     const checked = prefState[group].has(value) ? 'checked' : '';
-    const v = traviEscape(value).replace(/"/g, '&quot;');
-    return `<label class="pref-check${extra ? ' extra' : ''}" data-name="${traviEscape(label.toLowerCase())}">
-      <input type="checkbox" ${checked} onchange="prefToggle('${group}', this.dataset.v, this.checked)" data-v="${v}"> ${traviEscape(label)}
+    const v = escapeHtml(value).replace(/"/g, '&quot;');
+    return `<label class="pref-check${extra ? ' extra' : ''}" data-name="${escapeHtml(label.toLowerCase())}">
+      <input type="checkbox" ${checked} onchange="prefToggle('${group}', this.dataset.v, this.checked)" data-v="${v}"> ${escapeHtml(label)}
       ${count != null ? `<span class="pref-count">${count}</span>` : ''}
     </label>`;
   }
@@ -10933,7 +9706,7 @@
     const last = s.history && s.history[s.history.length - 1];
     if (!last) return null;
     return last.route
-      ? { kind: 'route', label: `Back to ${last.route.fromCityName || last.route.fromCode} → ${last.route.toCityName || last.route.toCode}, ${traviPrettyDate(last.route.date)}` }
+      ? { kind: 'route', label: `Back to ${last.route.fromCityName || last.route.fromCode} → ${last.route.toCityName || last.route.toCode}, ${prettyDate(last.route.date)}` }
       : { kind: 'pref', label: 'Undo your last preference change' };
   }
 
@@ -10968,7 +9741,7 @@
         Object.assign(s, r, { international: r.routeScope, presetResolved: r.resolved, pendingPrefs: last.prefs, shown: null });
         document.getElementById(r.routeScope ? 'compareScopeInternational' : 'compareScopeDomestic').checked = true;
         compareFillRouteForm(s);
-        compareSetHeader(compareRouteTitle(), `Comparing fares for ${traviPrettyDate(r.date)}`);
+        compareSetHeader(compareRouteTitle(), `Comparing fares for ${prettyDate(r.date)}`);
         compareRenderForScope(r.routeScope, async () => r.prices);
       } else {
         prefState = last.prefs;
@@ -10999,44 +9772,6 @@
     fromInput.select();
   }
 
-  // Lets Travi (chat) trigger the same comparison flow as the page's
-  // "Compare Prices" buttons, starting from free-text city names instead
-  // of an already-filled search form. Tries to anchor the route on
-  // whichever directory (flights/trains/buses) actually recognises both
-  // cities, fills that tab's fields, then opens the comparison page.
-  function compareFillAndOpenFromChat(fromQuery, toQuery, isoDate) {
-    const candidates = [
-      { mode: 'flights', find: traviFindAirport, fromInputId: 'flightFromInput', toInputId: 'flightToInput', fromHiddenId: 'flightFrom', toHiddenId: 'flightTo', dateId: 'flightDepartureDate' },
-      { mode: 'trains', find: traviFindStation, fromInputId: 'trainFromInput', toInputId: 'trainToInput', fromHiddenId: 'trainFrom', toHiddenId: 'trainTo', dateId: 'trainJourneyDate' },
-      { mode: 'buses', find: traviFindBusStop, fromInputId: 'busFromInput', toInputId: 'busToInput', fromHiddenId: 'busFrom', toHiddenId: 'busTo', dateId: 'busJourneyDate' }
-    ];
-
-    for (const c of candidates) {
-      const fromEntity = c.find(fromQuery);
-      const toEntity = c.find(toQuery);
-      if (!fromEntity || !toEntity) continue;
-
-      switchTab(c.mode);
-      document.getElementById(c.fromHiddenId).value = fromEntity.code;
-      document.getElementById(c.toHiddenId).value = toEntity.code;
-      document.getElementById(c.fromInputId).value = compareFormatLabel(c.mode, fromEntity);
-      document.getElementById(c.toInputId).value = compareFormatLabel(c.mode, toEntity);
-
-      const chosenDate = isoDate || document.getElementById(c.dateId).value || (() => {
-        const d = new Date(); d.setDate(d.getDate() + 1);
-        return traviToIso(d.getFullYear(), d.getMonth(), d.getDate());
-      })();
-      document.getElementById(c.dateId).value = chosenDate;
-
-      openComparePrices(c.mode);
-
-      const label = c.mode === 'flights' ? { from: fromEntity.city, to: toEntity.city } : { from: fromEntity.name, to: toEntity.name };
-      return { ok: true, label, mode: c.mode };
-    }
-
-    return { ok: false };
-  }
-
   // "View Results" on a mode's fare row: show that mode's options in the
   // list further down the same page.
   function compareSelectMode(mode) {
@@ -11047,10 +9782,9 @@
   }
 
   // "Book on the … tab": that tab already holds this route's results, so
-  // leave the comparison (and the chat, if open) and show it.
+  // leave the comparison and show it.
   function compareOpenTab(mode) {
     closeComparePrices();
-    if (traviOpen) toggleTravi();
     switchTab(mode);
     document.getElementById(mode).scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
