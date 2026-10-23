@@ -58,14 +58,14 @@ app.listen(PORT, () => {
   if (process.env.SERPAPI_KEY) {
     console.log('✅ SERPAPI_KEY is set — live Google Flights search is active.');
   } else {
-    console.warn('⚠️  SERPAPI_KEY is not set — falling back to mock flight data for every search. Set it in .env.');
+    console.warn('⚠️  SERPAPI_KEY is not set — flight searches will return an error (no flights) until it is set in .env.');
   }
   if (process.env.RAPIDAPI_KEY) {
     // Reads the local usage file only — no request is sent at startup.
     const { MAX_LOOKUPS_PER_SEARCH, requestBudgetStatus } = require('./src/services/irctc.service');
     const quota = requestBudgetStatus();
     if (!quota.enabled) {
-      console.log('ℹ️  RAPIDAPI_KEY is set, but live Indian Railway IRCTC requests are OFF (TRAIN_API_REQUEST_BUDGET is 0 or unset) — trains use the public timetable plus any cached IRCTC data.');
+      console.log('ℹ️  RAPIDAPI_KEY is set, but live Indian Railway IRCTC requests are OFF (TRAIN_API_REQUEST_BUDGET is 0 or unset) — trains use the public erail.in timetable only (the IRCTC cache is in memory and starts empty, and nothing is added to it while requests are off).');
     } else {
       console.log(`✅ Live Indian Railway IRCTC requests are on: ${quota.requestsSent} of ${quota.budget} budgeted requests sent (up to ${MAX_LOOKUPS_PER_SEARCH} per search).`);
       console.log(quota.configuredPeriod

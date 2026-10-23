@@ -26,7 +26,7 @@ router.get('/', (req, res) => {
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
     providers: {
-      flights: { provider: 'SerpApi (Google Flights)', configured: Boolean(process.env.SERPAPI_KEY), fallback: 'mock' },
+      flights: { provider: 'SerpApi (Google Flights)', configured: Boolean(process.env.SERPAPI_KEY), fallback: null },
       trains: { provider: 'Indian Railway IRCTC (RapidAPI)', configured: Boolean(process.env.RAPIDAPI_KEY), fallback: 'erail.in timetable' },
       buses: { provider: 'simulated', configured: true, fallback: null }
     }

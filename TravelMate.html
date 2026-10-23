@@ -358,12 +358,12 @@
   .avl-available { color: #27ae60; }
   .avl-rac { color: #e67e22; }
   .avl-wl { color: #e74c3c; }
-  .seat-check-link { display: block; margin-top: 2px; font-size: 0.78rem; color: #2c6e8f; text-decoration: underline; }
   .seat-check-note { flex-basis: 100%; margin: 2px 0 0; font-size: 0.75rem; color: #6b7a80; }
   .data-status { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; line-height: 1.5; vertical-align: middle; white-space: nowrap; cursor: help; }
   .data-status-live { background: #e6f6ec; color: #1e7b45; }
   .data-status-cached { background: #e8f0fb; color: #2a5d9f; }
-  .data-status-demo { background: #fdf0e3; color: #b35c00; }
+  .data-status-demo, .data-status-unverified { background: #fdf0e3; color: #b35c00; }
+  .flight-updated { margin-left: 6px; font-size: 0.78rem; color: #6b7a80; white-space: nowrap; }
   .data-status-info { background: #eef1f3; color: #4f5d63; }
   .retiring-room-tag { color: #1a5f7a; font-weight: 600; }
   .estimated-tag { color: #e67e22; }
@@ -2531,6 +2531,327 @@
     .tm-otp-boxes { gap: 6px; }
     .tm-otp-boxes input { width: 44px; height: 52px; font-size: 1.3rem; }
   }
+
+  /* ===================== Train booking: Passenger Details ===================== */
+  .class-pill { cursor: pointer; transition: border-color .15s, background .15s; }
+  .class-pill:hover { border-color: #1a5f7a; }
+  .class-pill.selected { border-color: #e74c3c; background: #fff4f2; box-shadow: 0 0 0 1px #e74c3c inset; }
+  .class-pill .class-refresh-btn { cursor: pointer; }
+
+  /* Booking pages open under the site header (which stays in view), so they
+     read as part of TravelMate rather than a separate pop-up window.
+     --tm-nav-h is the header's height, set when a booking opens. */
+  .bk-overlay { position: fixed; top: var(--tm-nav-h, 0px); left: 0; right: 0; bottom: 0; background: #eef2f4; z-index: 1300; display: none; flex-direction: column; }
+  .bk-overlay.open { display: flex; }
+  body.bk-lock { overflow: hidden; }
+  .bk-top { width: 100%; max-width: 1180px; margin: 0 auto; box-sizing: border-box; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px 16px 0; flex-shrink: 0; }
+  .bk-top h3 { margin: 0; font-size: 1.35rem; font-weight: 700; color: #1a5f7a; }
+  .bk-back { background: none; border: none; color: #1a5f7a; font-size: 0.88rem; font-weight: 600; cursor: pointer; padding: 2px 0; font-family: inherit; }
+  .bk-back:hover { color: #e74c3c; text-decoration: underline; }
+  .bk-scroll { flex: 1; overflow: auto; min-height: 0; }
+  .bk-wrap { max-width: 1180px; margin: 0 auto; padding: 18px 16px 40px; }
+
+  .bk-steps { display: flex; justify-content: space-between; position: relative; max-width: 760px; margin: 4px auto 22px; }
+  .bk-steps::before { content: ''; position: absolute; left: 12%; right: 12%; top: 15px; height: 2px; background: #cfd8dc; }
+  .bk-step { position: relative; flex: 1; text-align: center; font-size: 0.82rem; color: #7b8a92; }
+  .bk-step .dot { width: 32px; height: 32px; border-radius: 50%; background: #cfd8dc; color: #fff; display: flex; align-items: center; justify-content: center; margin: 0 auto 6px; font-weight: 700; position: relative; }
+  .bk-step.active { color: #1f2d33; font-weight: 700; }
+  .bk-step.active .dot { background: #e74c3c; box-shadow: 0 0 0 4px rgba(231,76,60,0.18); }
+  .bk-step.done .dot { background: #1e9e58; }
+
+  .bk-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+  .bk-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .bk-side { position: sticky; top: 0; display: flex; flex-direction: column; gap: 12px; }
+
+  .bk-card { background: #fff; border: 1px solid #dde3e6; border-radius: 6px; padding: 16px 18px; }
+  .bk-card h4 { margin: 0 0 12px; font-size: 1.08rem; color: #1f2d33; }
+  .bk-card h4 small { font-size: 0.78rem; font-weight: 400; color: #6b7a80; margin-left: 6px; }
+
+  .bk-alert { background: #fff6dd; border: 1px solid #f3dc94; color: #6b5300; border-radius: 4px; padding: 8px 12px; font-size: 0.8rem; }
+  .bk-train-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .bk-train-name { font-weight: 700; font-size: 1.05rem; color: #1f2d33; }
+  .bk-journey { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin: 12px 0 8px; }
+  .bk-journey .end { text-align: right; }
+  .bk-journey strong { font-size: 1rem; color: #1f2d33; display: block; }
+  .bk-journey span { font-size: 0.85rem; color: #555; }
+  .bk-journey .dur { color: #7b8a92; font-size: 0.85rem; white-space: nowrap; }
+  .bk-journey .dur::before, .bk-journey .dur::after { content: ' — '; }
+  .bk-class-tag { display: inline-block; background: #f1f4f6; border-radius: 4px; padding: 4px 10px; font-weight: 700; font-size: 0.86rem; color: #1f2d33; }
+  .bk-label { display: block; font-size: 0.76rem; font-weight: 700; color: #1f2d33; text-transform: uppercase; letter-spacing: .03em; margin: 12px 0 6px; }
+  .bk-ntes { font-size: 0.78rem; color: #333; margin-top: 8px; font-weight: 600; }
+  .bk-ntes a { color: #1a5f7a; }
+
+  .bk-in, .bk-sel { width: 100%; box-sizing: border-box; border: 1px solid #c9d2d6; border-radius: 4px; padding: 9px 10px; font-size: 0.88rem; font-family: inherit; color: #1f2d33; background: #fff; }
+  .bk-in:focus, .bk-sel:focus { outline: none; border-color: #1a5f7a; box-shadow: 0 0 0 2px rgba(26,95,122,0.15); }
+  .bk-in.err, .bk-sel.err { border-color: #e74c3c; background: #fff7f6; }
+
+  .bk-radios { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 0.88rem; }
+  .bk-radios label, .bk-check { display: inline-flex; align-items: flex-start; gap: 7px; cursor: pointer; color: #1f2d33; }
+  .bk-radios input, .bk-check input { accent-color: #e74c3c; margin-top: 3px; }
+  .bk-sub-note { font-size: 0.76rem; color: #e67e22; font-weight: 600; margin-top: 6px; }
+
+  .bk-notes { background: #fdeee9; border-left: 4px solid #e67e22; border-radius: 4px; padding: 10px 14px; font-size: 0.8rem; color: #333; }
+  .bk-notes strong { display: block; margin-bottom: 4px; }
+  .bk-notes ol { margin: 0; padding-left: 18px; }
+
+  .bk-psg-row { display: grid; grid-template-columns: minmax(150px, 2.2fr) 70px minmax(100px, 1fr) minmax(110px, 1.2fr) minmax(130px, 1.4fr) 28px; gap: 8px; align-items: start; margin-bottom: 10px; }
+  .bk-psg-row.infant { grid-template-columns: minmax(150px, 2.2fr) minmax(110px, 1fr) minmax(100px, 1fr) 28px; }
+  .bk-psg-num { display: none; }
+  .bk-name-wrap { position: relative; }
+  .bk-del { background: none; border: none; color: #8a979d; font-size: 1.05rem; font-weight: 700; cursor: pointer; padding: 8px 4px; line-height: 1; }
+  .bk-del:hover { color: #e74c3c; }
+  .bk-del:disabled { visibility: hidden; }
+  .bk-err-msg { grid-column: 1 / -1; font-size: 0.74rem; color: #c0392b; margin-top: -4px; }
+  .bk-suggest { position: absolute; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid #c9d2d6; border-top: none; z-index: 5; max-height: 200px; overflow: auto; box-shadow: 0 6px 16px rgba(0,0,0,0.1); }
+  .bk-suggest button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; text-align: left; background: #fff; border: none; border-bottom: 1px solid #eef1f3; padding: 7px 10px; font-size: 0.82rem; cursor: pointer; font-family: inherit; color: #1f2d33; }
+  .bk-suggest button:hover, .bk-suggest button:focus { background: #f2f7f9; outline: none; }
+  .bk-suggest .meta { color: #6b7a80; }
+  .bk-suggest .tick { color: #1e9e58; font-weight: 700; }
+  .bk-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .bk-link { background: none; border: none; color: #1a5f7a; font-weight: 700; font-size: 0.84rem; cursor: pointer; padding: 4px 0; font-family: inherit; }
+  .bk-link:hover { text-decoration: underline; }
+  .bk-link:disabled { color: #aab4b9; cursor: not-allowed; text-decoration: none; }
+  .bk-small { font-size: 0.76rem; color: #555; margin-top: 8px; }
+  .bk-sub-head { font-size: 0.86rem; font-weight: 700; color: #1f2d33; margin: 14px 0 8px; }
+
+  .bk-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .bk-phone { display: flex; max-width: 300px; }
+  .bk-phone span { background: #f1f4f6; border: 1px solid #c9d2d6; border-right: none; border-radius: 4px 0 0 4px; padding: 9px 12px; font-size: 0.88rem; color: #555; }
+  .bk-phone .bk-in { border-radius: 0 4px 4px 0; }
+  .bk-login-hint { font-size: 0.8rem; color: #555; margin-bottom: 10px; }
+  .bk-login-hint button { background: none; border: none; color: #1a5f7a; font-weight: 700; cursor: pointer; padding: 0; font-size: inherit; font-family: inherit; }
+
+  .bk-fare { background: #fff; border: 1px solid #dde3e6; border-radius: 6px; overflow: hidden; }
+  .bk-fare h5 { margin: 0; padding: 12px 16px; font-size: 1rem; color: #1f2d33; border-bottom: 1px solid #edf1f3; }
+  .bk-fare-row { display: flex; justify-content: space-between; padding: 9px 16px; font-size: 0.86rem; color: #333; border-bottom: 1px solid #f1f4f6; }
+  .bk-fare-row small { color: #7b8a92; display: block; font-size: 0.72rem; }
+  .bk-fare-total { background: #1a3d6d; color: #fff; font-weight: 700; font-size: 0.98rem; border: none; }
+  .bk-fare-note { padding: 10px 16px; font-size: 0.72rem; color: #6b7a80; }
+  .bk-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+  .bk-btn { border: none; border-radius: 4px; padding: 11px 26px; font-weight: 700; font-size: 0.9rem; cursor: pointer; font-family: inherit; }
+  .bk-btn-primary { background: #e74c3c; color: #fff; }
+  .bk-btn-primary:hover { background: #c0392b; }
+  .bk-btn-ghost { background: #fff; color: #1f2d33; border: 1px solid #c9d2d6; }
+  .bk-btn-ghost:hover { background: #f5f8fa; }
+  .bk-form-err { background: #fdecea; border: 1px solid #f5c6c0; color: #a93226; border-radius: 4px; padding: 10px 12px; font-size: 0.84rem; }
+
+  .bk-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  .bk-table th { text-align: left; background: #f4f6f8; color: #23414b; font-size: 0.74rem; padding: 8px 10px; border-bottom: 1px solid #dde3e6; }
+  .bk-table td { padding: 8px 10px; border-bottom: 1px solid #edf1f3; }
+  .bk-kv { display: grid; grid-template-columns: 180px 1fr; gap: 6px 12px; font-size: 0.86rem; }
+  .bk-kv dt { color: #6b7a80; }
+  .bk-kv dd { margin: 0; color: #1f2d33; font-weight: 600; }
+  .bk-done { text-align: center; padding: 26px 18px; }
+  .bk-done .big { font-size: 2.2rem; }
+  .bk-done p { color: #555; font-size: 0.9rem; max-width: 520px; margin: 8px auto 16px; }
+
+  @media (max-width: 900px) {
+    .bk-grid { grid-template-columns: 1fr; }
+    .bk-side { position: static; }
+  }
+  @media (max-width: 720px) {
+    .bk-psg-row, .bk-psg-row.infant { grid-template-columns: 1fr 1fr; background: #f8fafb; border: 1px solid #e6ebee; border-radius: 6px; padding: 10px; position: relative; }
+    .bk-psg-row .bk-name-wrap { grid-column: 1 / -1; padding-right: 26px; }
+    .bk-psg-row .bk-del { position: absolute; top: 8px; right: 6px; }
+    .bk-row2 { grid-template-columns: 1fr; }
+    .bk-journey { grid-template-columns: 1fr 1fr; }
+    .bk-journey .dur { grid-column: 1 / -1; grid-row: 2; text-align: center; }
+    .bk-kv { grid-template-columns: 1fr; }
+    .bk-kv dd { margin-bottom: 6px; }
+    .bk-steps { font-size: 0.74rem; }
+  }
+  .ab-cta a.ab-select-btn { text-align: center; text-decoration: none; }
+
+  /* ---------- Bus: AbhiBus-style card badges, popular filters, RTC groups ---------- */
+  .ab-top-right { display: flex; align-items: flex-start; gap: 12px; flex: 0 0 auto; }
+  .ab-plate { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem; font-weight: 700; color: #1f2d33; background: #ffd84d; border: 1px dashed #1f2d33; border-radius: 4px; padding: 1px 6px; letter-spacing: .03em; white-space: nowrap; }
+  .ab-assured { display: inline-flex; align-items: center; gap: 4px; background: linear-gradient(90deg, #1a5f7a, #2b7f9e); color: #fff; font-size: 0.68rem; font-weight: 700; padding: 3px 9px 3px 7px; border-radius: 12px; }
+  .ab-new.is-new { color: var(--ab-green); font-weight: 600; }
+
+  .ab-popular { background: linear-gradient(135deg, #fff8ef, #fdf1f6); border: 1px solid #f3e3d3; border-radius: 12px; padding: 12px 16px 14px; margin-bottom: 12px; }
+  .ab-popular h5 { margin: 0 0 4px; font-size: 1rem; color: #1f2d33; }
+  .ab-pop-tabs { display: flex; gap: 18px; border-bottom: 1px solid #efe2d6; margin-bottom: 10px; overflow-x: auto; }
+  .ab-pop-tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 0; margin-bottom: -1px; font-size: 0.84rem; color: #6b7a80; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .ab-pop-tab.active { color: var(--ab-red); border-bottom-color: var(--ab-red); font-weight: 600; }
+  .ab-pop-row { display: flex; align-items: center; gap: 8px; }
+  .ab-pop-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; scroll-behavior: smooth; }
+  .ab-pop-chips::-webkit-scrollbar { display: none; }
+  .ab-pop-chip { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; border: 1px solid var(--ab-line); border-radius: 8px; padding: 6px 12px; min-height: 38px; font-size: 0.8rem; color: #33444b; cursor: pointer; font-family: inherit; }
+  .ab-pop-chip small { font-size: 0.6rem; color: var(--ab-muted); line-height: 1.1; }
+  .ab-pop-chip:hover { border-color: var(--ab-red); }
+  .ab-pop-chip.active { border-color: var(--ab-red); background: #fff4f2; color: var(--ab-red); font-weight: 600; }
+  .ab-pop-next { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--ab-red); color: #fff; font-size: 1.1rem; line-height: 1; cursor: pointer; }
+
+  .ab-group { background: #fff; border: 1px solid var(--ab-line); border-radius: 12px; margin-bottom: 14px; overflow: hidden; }
+  .ab-group.is-open { box-shadow: 0 8px 24px rgba(26,95,122,.1); }
+  .ab-group-head { display: flex; align-items: center; gap: 14px; padding: 14px 16px; }
+  .ab-group-logo { width: 44px; height: 44px; border-radius: 50%; background: #e9f7ef; color: var(--ab-green); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .ab-group-logo svg { width: 22px; height: 22px; }
+  .ab-group-info { flex: 1; min-width: 0; }
+  .ab-group-name { font-weight: 700; color: #1f2d33; font-size: 1.02rem; }
+  .ab-group-name span { font-weight: 400; font-size: 0.76rem; color: var(--ab-muted); }
+  .ab-group-sub { font-size: 0.8rem; color: #4a5a61; margin-top: 2px; }
+  .ab-group-cta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .ab-group-btn { background: #fff; color: var(--ab-red); border: 1px solid var(--ab-red); border-radius: 7px; padding: 7px 14px; font-weight: 700; font-size: 0.82rem; cursor: pointer; font-family: inherit; }
+  .ab-group-btn:hover, .ab-group.is-open .ab-group-btn { background: var(--ab-red); color: #fff; }
+  .ab-group-list { background: var(--ab-soft); border-top: 1px solid var(--ab-line); padding: 12px; }
+  .ab-group-list .ab-card:last-child { margin-bottom: 0; }
+
+  /* ---------- Bus: seat panel (horizontal decks + boarding / dropping tabs) ---------- */
+  .ab-seat-panel { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; margin-top: 4px; }
+  .ab-sp-left { min-width: 0; }
+  .ab-price-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .ab-price-chips button { border: 1px solid var(--ab-line); background: #fff; border-radius: 16px; padding: 4px 12px; font-size: 0.78rem; cursor: pointer; color: #33444b; font-family: inherit; }
+  .ab-price-chips button:hover { border-color: var(--ab-red); }
+  .ab-price-chips button.active { border-color: var(--ab-red); color: var(--ab-red); background: #fff4f2; font-weight: 700; }
+  .ab-seat-map { display: flex; flex-direction: column; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+  .ab-deck-row { display: flex; align-items: stretch; gap: 8px; }
+  .ab-deck-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.74rem; font-weight: 700; color: #4a5a61; text-align: center; letter-spacing: .06em; flex: 0 0 auto; }
+  .ab-deck { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--ab-line); border-radius: 10px; padding: 10px 12px; background: #fbfcfd; width: max-content; }
+  .ab-deck .ab-wheel, .ab-deck .ab-wheel-space { width: 26px; flex: 0 0 26px; padding-top: 2px; color: #8a9aa1; display: flex; }
+  .ab-deck-grid { display: grid; gap: 5px; }
+  .ab-seat .ab-seat-price, .ab-seat.sleeper .ab-seat-price { margin: 0 8px 0 0; font-size: 0.6rem; }
+  .ab-seat { width: 34px; align-items: center; }
+  .ab-seat.seater { width: 34px; height: 34px; }
+  .ab-seat.seater .ab-seat-price { margin-right: 5px; font-size: 0.56rem; }
+  .ab-seat.sleeper { width: 60px; height: 30px; }
+  .ab-seat.seater::after { left: auto; right: 4px; top: 6px; bottom: 6px; width: 3px; height: auto; }
+  .ab-seat.sleeper::after { left: auto; right: 5px; top: 7px; bottom: 7px; width: 6px; height: auto; }
+  .ab-seat:hover:not(:disabled) { transform: none; box-shadow: 0 0 0 2px rgba(26,95,122,.22); }
+  .ab-seat.gents { border-color: #2f80ed; }
+  .ab-seat.dim { opacity: .28; }
+  .ab-seat.selected { box-shadow: 0 0 0 2px rgba(26,95,122,.25); }
+  .ab-seat-map + .ab-legend { margin: 12px 0 0; }
+  .lg.gents { border-color: #2f80ed; }
+
+  .ab-sp-right { border: 1px solid var(--ab-line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; background: #fff; }
+  .ab-pt-tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--ab-line); }
+  .ab-pt-tab { background: #fff; border: 0; border-bottom: 2px solid transparent; padding: 10px 8px 8px; font-size: 0.82rem; color: #6b7a80; cursor: pointer; font-family: inherit; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .ab-pt-tab.active { color: var(--ab-red); border-bottom-color: var(--ab-red); font-weight: 600; background: #fff8f7; }
+  .ab-pt-tab.done:not(.active) .ab-pt-tab-label { color: var(--ab-green); }
+  .ab-pt-tab small { font-size: 0.66rem; color: #6b7a80; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
+  .ab-pt-search { display: flex; align-items: center; gap: 8px; margin: 10px; border: 1px solid #d5dde1; border-radius: 8px; padding: 0 10px; color: var(--ab-muted); }
+  .ab-pt-search:focus-within { border-color: var(--ab-teal); }
+  .ab-pt-search input { border: 0; outline: none; flex: 1; padding: 8px 0; font-size: 0.84rem; font-family: inherit; min-width: 0; background: transparent; }
+  .ab-pt-list { max-height: 270px; overflow-y: auto; padding: 0 10px 6px; }
+  .ab-pt-list .ab-empty-list { padding: 10px 2px; }
+  .ab-pt { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 9px 4px; border-bottom: 1px solid #f0f3f5; cursor: pointer; border-radius: 6px; }
+  .ab-pt:hover { background: #fafcfd; }
+  .ab-pt.checked { background: #fff6f4; }
+  .ab-pt input { accent-color: var(--ab-red); margin: 3px 0 0; }
+  .ab-pt-text strong { display: block; font-size: 0.8rem; color: #1f2d33; font-weight: 600; }
+  .ab-pt-text small, .ab-pt-time small { display: block; font-size: 0.7rem; color: var(--ab-muted); margin-top: 2px; }
+  .ab-pt-time { text-align: right; }
+  .ab-pt-time strong { font-size: 0.8rem; white-space: nowrap; color: #1f2d33; }
+  .ab-sp-foot { border-top: 1px solid var(--ab-line); }
+  .ab-sp-offer { background: #fff3e6; color: #c0610d; font-size: 0.76rem; padding: 7px 12px; font-weight: 600; }
+  .ab-sp-bar { display: flex; align-items: center; gap: 14px; padding: 10px 12px; }
+  .ab-sp-amt strong, .ab-sp-cnt strong { display: block; font-size: 1.05rem; color: #1f2d33; }
+  .ab-sp-amt small, .ab-sp-cnt small { font-size: 0.68rem; color: var(--ab-muted); }
+  .ab-sp-cnt { flex: 1; min-width: 0; }
+  .ab-sp-bar .ab-proceed { width: auto; margin: 0; padding: 10px 22px; }
+  .ab-sp-need { margin: 0; padding: 0 12px 10px; font-size: 0.74rem; color: var(--ab-muted); text-align: right; }
+
+  /* ---------- Bus checkout (passenger info page) ---------- */
+  .bus-co-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .bus-co-head h4 { display: flex; align-items: center; gap: 8px; }
+  .bus-co-trip { border-color: #b9d3de; padding-bottom: 0; overflow: hidden; }
+  .bus-co-route { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 14px; align-items: center; }
+  .bus-co-route > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .bus-co-route .end { text-align: right; align-items: flex-end; }
+  .bus-co-city { font-weight: 700; color: #1f2d33; font-size: 1rem; }
+  .bus-co-route strong { font-size: 0.84rem; color: #33444b; font-weight: 600; }
+  .bus-co-route small { font-size: 0.74rem; color: var(--ab-muted); }
+  .bus-co-route .bus-co-dur { position: relative; display: flex; align-items: center; justify-content: center; min-width: 110px; }
+  .bus-co-dur::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed #c5d0d5; }
+  .bus-co-dur span { position: relative; border: 1px solid #dbe3e7; border-radius: 12px; padding: 2px 10px; font-size: 0.74rem; color: #4a5a61; white-space: nowrap; background: #fff; }
+  .bus-co-bus { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 14px -18px 0; padding: 10px 18px; background: #eef6fa; border-top: 1px solid #d6e6ee; }
+  .bus-co-bus strong { display: block; color: #1f2d33; }
+  .bus-co-bus span { font-size: 0.78rem; color: #4a5a61; }
+  .bus-co-tags { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .bus-co-tags .ab-new { font-size: 0.76rem; display: inline-flex; align-items: center; gap: 4px; }
+  .bus-co-field { display: flex; flex-direction: column; gap: 5px; font-size: 0.78rem; color: #4a5a61; font-weight: 600; min-width: 0; }
+  .bus-co-field small { font-weight: 400; color: var(--ab-muted); }
+  .bus-co-field .bk-phone { max-width: none; }
+  .bus-co-err { color: #c0392b; font-size: 0.74rem; font-style: normal; font-weight: 400; }
+  .bus-co-pax { display: grid; grid-template-columns: 74px minmax(0, 1fr) 76px auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px dashed #e6ebee; }
+  .bus-co-pax:last-child { border-bottom: 0; }
+  .bus-co-lock { grid-column: 2 / -1; font-size: 0.72rem; color: #c2185b; margin-top: -4px; }
+  .bus-co-lock.m { color: #2f6fd6; }
+  .bus-co-seat { display: inline-flex; align-items: center; justify-content: center; gap: 4px; background: #e9f7ef; color: var(--ab-green); font-weight: 700; font-size: 0.8rem; border-radius: 6px; padding: 8px; }
+  .bus-co-seat.ladies { background: #fdeef6; color: #c2185b; }
+  .bus-co-seat.gents { background: #eaf2fe; color: #2f6fd6; }
+  .bus-co-gender { display: inline-flex; border: 1px solid #c9d2d6; border-radius: 20px; overflow: hidden; }
+  .bus-co-gender button { border: 0; background: #fff; padding: 8px 14px; font-size: 0.82rem; cursor: pointer; font-family: inherit; color: #4a5a61; }
+  .bus-co-gender button + button { border-left: 1px solid #c9d2d6; }
+  .bus-co-gender button.on { background: var(--ab-teal); color: #fff; font-weight: 600; }
+  .bus-co-gender button:disabled { color: #c3ccd0; cursor: not-allowed; }
+  .bus-co-gender.err { border-color: #e74c3c; box-shadow: 0 0 0 1px #e74c3c; }
+  .bus-co-assure { background: linear-gradient(180deg, #f2f8fb, #fff 45%); }
+  .bus-co-assure.err { border-color: #e74c3c; box-shadow: 0 0 0 1px #e74c3c; }
+  .bus-co-assure-head { text-align: center; }
+  .bus-co-assure-head .ab-assured { font-size: 0.78rem; padding: 4px 12px 4px 9px; }
+  .bus-co-assure-head p { margin: 8px 0 14px; color: #33444b; }
+  .bus-co-benefits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .bus-co-benefits div { text-align: center; display: flex; flex-direction: column; gap: 2px; padding: 8px; }
+  .bus-co-benefits b { font-size: 1.5rem; color: var(--ab-teal); font-weight: 800; }
+  .bus-co-benefits strong { font-size: 0.84rem; color: #1f2d33; }
+  .bus-co-benefits span { font-size: 0.72rem; color: var(--ab-muted); }
+  .bus-co-benefits em { font-style: normal; font-size: 0.78rem; color: #2f6fd6; font-weight: 600; margin-top: 6px; }
+  .bus-co-opt { display: flex; align-items: center; gap: 10px; border: 1px solid #dde3e6; border-radius: 8px; padding: 11px 12px; margin-top: 10px; cursor: pointer; position: relative; font-size: 0.86rem; color: #1f2d33; }
+  .bus-co-opt input { accent-color: var(--ab-red); }
+  .bus-co-opt small { display: block; color: var(--ab-muted); font-size: 0.72rem; }
+  .bus-co-opt:has(input:checked) { border-color: var(--ab-teal); background: #f2f8fb; }
+  .bus-co-pop { position: absolute; right: 10px; top: -9px; background: #2f6fd6; color: #fff; font-style: normal; font-size: 0.66rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .bus-co-protect { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .bus-co-protect > span:nth-child(2) { flex: 1; }
+  .bus-co-protect strong { display: block; color: #1f2d33; }
+  .bus-co-protect small { color: #4a5a61; font-size: 0.78rem; }
+  .bus-co-protect input { width: 20px; height: 20px; accent-color: var(--ab-red); flex: 0 0 auto; }
+  .bus-co-protect-ico { width: 38px; height: 38px; border-radius: 50%; background: #eef6fa; color: var(--ab-teal); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .bus-co-addr { margin: 0; font-size: 0.86rem; color: #33444b; line-height: 1.5; }
+  .bus-co-addr.err em { color: #c0392b; }
+  .bus-co-billing { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .bus-co-billing .bus-co-wide { grid-column: 1 / -1; }
+  .bus-co-tc { font-size: 0.74rem; color: #6b7a80; text-align: center; margin: 0; }
+  .bus-co-cta { width: 100%; padding: 13px; font-size: 0.98rem; border-radius: 6px; }
+  .bus-co-paygrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .bus-co-paym { display: flex; gap: 10px; align-items: flex-start; border: 1px solid #dde3e6; border-radius: 8px; padding: 12px; cursor: pointer; }
+  .bus-co-paym.on { border-color: var(--ab-teal); background: #f2f8fb; }
+  .bus-co-paym strong { display: block; font-size: 0.88rem; color: #1f2d33; }
+  .bus-co-paym small { font-size: 0.74rem; color: var(--ab-muted); }
+  .bus-co-paym input { accent-color: var(--ab-red); margin-top: 3px; }
+  .bus-co-ticket { max-width: 640px; margin: 0 auto; }
+  .bus-co-ticket h3 { margin: 4px 0; color: #1f2d33; }
+  .bus-co-note { font-size: 0.8rem; color: var(--ab-green); margin: 8px 0 0; text-align: left; }
+
+  @media (max-width: 900px) {
+    .ab-seat-panel { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .ab-top-right { width: 100%; justify-content: space-between; flex-direction: row-reverse; }
+    .ab-group-head { flex-wrap: wrap; }
+    .ab-group-cta { flex-direction: row; align-items: center; justify-content: space-between; width: 100%; }
+    .ab-popular { padding: 10px 12px 12px; }
+    .bus-co-route { grid-template-columns: 1fr 1fr; }
+    .bus-co-route .bus-co-dur { grid-column: 1 / -1; grid-row: 2; }
+    .bus-co-pax { grid-template-columns: 64px minmax(0, 1fr) 64px; }
+    .bus-co-gender { grid-column: 2 / -1; justify-self: start; }
+    .bus-co-benefits { grid-template-columns: 1fr; gap: 4px; }
+    .bus-co-benefits div { display: grid; grid-template-columns: 58px 1fr; text-align: left; padding: 6px 0; gap: 0 10px; }
+    .bus-co-benefits b { grid-row: span 3; font-size: 1.25rem; align-self: center; }
+    .bus-co-benefits em { margin-top: 2px; }
+    .bus-co-billing, .bus-co-paygrid { grid-template-columns: 1fr; }
+    .bus-co-bus { margin-left: -18px; margin-right: -18px; }
+  }
+  .flight-details-link { background: none; border: none; color: #1a5f7a; font-weight: 600; font-size: 0.78rem; cursor: pointer; padding: 2px 0; font-family: inherit; }
+  .flight-details-link:hover { text-decoration: underline; }
+  .fl-logos { display: inline-flex; vertical-align: middle; margin-right: 8px; }
+  .fl-logos .al-logo + .al-logo { margin-left: 4px; }
+  .al-logo { width: 28px; height: 28px; border-radius: 6px; background: #fff; object-fit: contain; border: 1px solid #edf1f3; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .al-logo.al-initials { background: #1a5f7a; color: #fff; font-size: 0.68rem; font-weight: 700; border: none; letter-spacing: .02em; }
+  .detail-seg-logo { width: 40px; flex-shrink: 0; padding-top: 2px; }
+  .ab-book-flight.is-busy { opacity: .75; cursor: progress; }
 </style>
 </head>
 <body>
@@ -2622,12 +2943,12 @@
         <label class="filter-option"><input type="checkbox" value="checked-bag"> Checked bag included</label>
 
         <div class="filter-subheading">Times</div>
-        <label class="filter-option"><input type="checkbox" value="dep-morning"> Departure: Morning</label>
-        <label class="filter-option"><input type="checkbox" value="dep-afternoon"> Departure: Afternoon</label>
-        <label class="filter-option"><input type="checkbox" value="dep-evening"> Departure: Evening</label>
-        <label class="filter-option"><input type="checkbox" value="arr-morning"> Arrival: Morning</label>
-        <label class="filter-option"><input type="checkbox" value="arr-afternoon"> Arrival: Afternoon</label>
-        <label class="filter-option"><input type="checkbox" value="arr-evening"> Arrival: Evening</label>
+        <label class="filter-option"><input type="checkbox" value="dep-morning"> Departure: Morning (5 AM–12 PM)</label>
+        <label class="filter-option"><input type="checkbox" value="dep-afternoon"> Departure: Afternoon (12–5 PM)</label>
+        <label class="filter-option"><input type="checkbox" value="dep-evening"> Departure: Evening &amp; night (5 PM–5 AM)</label>
+        <label class="filter-option"><input type="checkbox" value="arr-morning"> Arrival: Morning (5 AM–12 PM)</label>
+        <label class="filter-option"><input type="checkbox" value="arr-afternoon"> Arrival: Afternoon (12–5 PM)</label>
+        <label class="filter-option"><input type="checkbox" value="arr-evening"> Arrival: Evening &amp; night (5 PM–5 AM)</label>
 
         <div class="filter-subheading">Emissions</div>
         <label class="filter-option"><input type="checkbox" value="lower-emissions"> Show only lower emissions</label>
@@ -3066,6 +3387,15 @@
               <button type="button" class="ab-sort" data-sort="departure" onclick="sortBuses('departure')">Departure Time <span class="ab-arrow">↑</span></button>
             </div>
           </div>
+          <div class="ab-popular" id="busPopular" hidden>
+            <h5>Popular Filters</h5>
+            <div class="ab-pop-tabs" role="tablist">
+              <button type="button" class="ab-pop-tab active" data-pop="boarding" role="tab" aria-selected="true">Boarding Points</button>
+              <button type="button" class="ab-pop-tab" data-pop="dropping" role="tab" aria-selected="false">Dropping Points</button>
+              <button type="button" class="ab-pop-tab" data-pop="operators" role="tab" aria-selected="false">Operators</button>
+            </div>
+            <div class="ab-pop-row"><div class="ab-pop-chips" id="busPopChips"></div><button type="button" class="ab-pop-next" aria-label="Scroll filters">›</button></div>
+          </div>
           <div id="busResultsList"></div>
           <div id="busLoadMore" class="ab-load-more"></div>
           <p class="ab-sim-note">Schedules, fares and seat maps are simulated by TravelMate (no public bus API) — they follow real routes, operators and boarding points but aren't live availability.</p>
@@ -3073,7 +3403,6 @@
 
       </div>
       </div>
-      <div id="busBookingModal" class="ab-modal" onclick="if(event.target===this) busCloseBooking()"></div>
       <div id="busToast" class="ab-toast" role="status" aria-live="polite"></div>
     </div>
   </div>
@@ -3912,18 +4241,10 @@
   }
 
   // No train source here offers live seat availability, so a class that isn't
-  // marked live links to IRCTC instead of showing a seat status. This is
-  // IRCTC's official train search page (the same one "Book Now" opens); it
-  // takes no route or date parameters, so the rider searches there.
-  const IRCTC_TRAIN_SEARCH_URL = 'https://www.irctc.co.in/nget/train-search';
+  // marked live shows no seat status — only a Refresh button to ask again.
   const IRCTC_SEAT_NOTE = 'TravelMate does not show live seat availability — verify seats on IRCTC before booking.';
 
   const escapeAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-  function irctcSeatLinkHtml(title) {
-    return `<a class="seat-check-link" href="${IRCTC_TRAIN_SEARCH_URL}" target="_blank" rel="noopener noreferrer"` +
-      ` title="${escapeAttr(title || IRCTC_SEAT_NOTE)}" aria-label="Check seat availability on IRCTC (opens in a new tab)">Check seats on IRCTC ↗</a>`;
-  }
 
   // The station codes a class pill's live lookup should use: the train's own
   // boarding / alighting stations ("Yesvantpur Junction (YPR)" -> "YPR"), not
@@ -3995,6 +4316,9 @@
   // city (Yesvantpur on a KSR Bengaluru search) is left unlabelled.
   function trainCardStations(t, meta) {
     let from = t.fromStation || '', to = t.toStation || '';
+    // Live results sometimes give a bare code ("CPSN") — show it as "Name (CODE)".
+    if (/^[A-Z]{2,5}$/.test(from)) from = getStationName(from) || from;
+    if (/^[A-Z]{2,5}$/.test(to)) to = getStationName(to) || to;
     if ((!from || !to) && meta && meta.from && meta.to &&
         (trainRoutes[`${meta.from}->${meta.to}`] || []).some(x => String(x.number) === String(t.trainNumber))) {
       from = from || getStationName(meta.from) || '';
@@ -4052,7 +4376,7 @@
             </div>
           </div>
           <div class="ab-cta">
-            <a class="ab-select-btn" href="https://www.irctc.co.in/nget/train-search" target="_blank" rel="noopener">Book Now</a>
+            <button type="button" class="ab-select-btn tm-book-train" data-train="${t.trainNumber}" data-from="${codes.from}" data-to="${codes.to}" data-date="${journeyDate || ''}">Book Now</button>
             <button type="button" class="schedule-link" data-train="${t.trainNumber}">Train Schedule</button>
           </div>
         </div>
@@ -4061,10 +4385,8 @@
             <div class="class-pill" data-train="${t.trainNumber}" data-class="${c.cls}" data-from="${codes.from}" data-to="${codes.to}" data-date="${journeyDate || ''}">
               <div class="class-pill-label">${c.cls}</div>
               <span class="fare">₹${c.fare}${c.live === true ? '' : ' (est.)'}</span>
-              ${c.live === true
-                ? `<span class="avl-${c.tier}">${c.status}</span>
-              <button type="button" class="class-refresh-btn" title="Refresh live fare &amp; availability">⟳ Refresh</button>`
-                : irctcSeatLinkHtml()}
+              ${c.live === true ? `<span class="avl-${c.tier}">${c.status}</span>` : ''}
+              <button type="button" class="class-refresh-btn" title="Refresh live fare &amp; availability">⟳ Refresh</button>
             </div>
           `).join('')}
           ${t.classes.some(c => c.live !== true) ? `<p class="seat-check-note">Fares marked (est.) are estimates. ${IRCTC_SEAT_NOTE}</p>` : ''}
@@ -4858,6 +5180,7 @@
       const r = rng();
       if (r < bookedFrac) s.status = rng() < 0.28 ? 'bookedF' : 'booked';
       else if (r < bookedFrac + 0.03) s.status = 'ladies';
+      else if (r < bookedFrac + 0.05) s.status = 'gents';
     });
     return { decks, seats: all };
   }
@@ -4909,8 +5232,8 @@
       let fare = Math.max(180, km * t.rate * (0.85 + rng() * 0.4)) * weekendMult * (isGovt ? 0.86 : 1);
       fare = Math.round(fare / 10) * 10 - (rng() < 0.4 ? 1 : 0);
       const flash = !isGovt && rng() < 0.08;
-      const save = isGovt ? 0 : flash ? Math.round(fare * (0.08 + rng() * 0.08) / 10) * 10 : (rng() < 0.8 ? 50 : 0);
-      const offer = isGovt ? '' : flash ? `Flash Offer: ₹${save} off per seat!` : save ? busPick(rng, ['Upto ₹50 off. Code: TMFIRST50', 'Extra ₹50 off. Code: TMRETURN50']) : '';
+      const save = flash ? Math.round(fare * (0.08 + rng() * 0.08) / 10) * 10 : 0;
+      const offer = flash ? `Flash Offer: ₹${save} off per seat!` : '';
 
       const rating = Math.round((isGovt ? 3.4 + rng() * 1.0 : 2.9 + Math.pow(rng(), 0.6) * 1.8) * 10) / 10;
       const ratingCount = Math.round(5 + Math.pow(rng(), 2) * 1500);
@@ -4920,15 +5243,15 @@
       const bookedFrac = Math.min(0.9, nearFactor + rng() * 0.4 + (rating > 4.2 ? 0.08 : 0));
       const layout = busBuildLayout(typeKey, fare, rng, bookedFrac);
       if (!layout.seats.some(s => s.status === 'available')) layout.seats[layout.seats.length - 1].status = 'available';
-      const available = layout.seats.filter(s => s.status === 'available' || s.status === 'ladies');
+      const available = layout.seats.filter(s => s.status === 'available' || s.status === 'ladies' || s.status === 'gents');
       const singles = available.filter(s => s.kind === 'sleeper' && s.single);
 
       const bCount = 2 + Math.floor(rng() * 3), dCount = 2 + Math.floor(rng() * 3);
       const bNames = busPointsFor(from, rng, bCount), dNames = busPointsFor(to, rng, dCount);
       let bOffset = 0;
-      const boardingDetails = bNames.map((n, k) => { if (k) bOffset += 10 + Math.floor(rng() * 3) * 5; return { name: n, time: busHHMM(dep + bOffset) }; });
+      const boardingDetails = bNames.map((n, k) => { if (k) bOffset += 10 + Math.floor(rng() * 3) * 5; return { name: n, time: busHHMM(dep + bOffset), abs: dep + bOffset }; });
       const dropStart = arrAbs - (dNames.length - 1) * 15;
-      const droppingDetails = dNames.map((n, k) => ({ name: n, time: busHHMM(dropStart + k * 15) }));
+      const droppingDetails = dNames.map((n, k) => ({ name: n, time: busHHMM(dropStart + k * 15), abs: dropStart + k * 15 }));
 
       const amenities = BUS_AMENITIES.filter(() => rng() < 0.5);
       if (t.ac && !amenities.includes('Blanket') && t.berth !== 'seater') amenities.unshift('Blanket');
@@ -4966,6 +5289,7 @@
         bookingUrl: '#'
       });
     }
+    buses.forEach(b => busEnrich(b, from, to, dateIso));
     return buses;
   }
 
@@ -5005,6 +5329,10 @@
   let busOpenPanel = { id: null, kind: null };
   let busSelectedSeats = [];
   let busChosenPoints = { boarding: null, dropping: null };
+  let busPointTab = 'boarding', busPointQuery = '';   // seat panel: Boarding / Dropping tabs
+  let busPriceChip = null;                            // seat panel: show seats of one price
+  let busOpenGroups = new Set();                      // expanded state-transport groups
+  let busPopTab = 'boarding';                         // Popular Filters tab
   const busFilters = { type: new Set(), dep: new Set(), arr: new Set(), boarding: new Set(), dropping: new Set(), operators: new Set(), quick: new Set(), priceMin: null, priceMax: null };
 
   // ---------- recent searches ----------
@@ -5302,6 +5630,7 @@
 
   // Counts per option are based on buses matching every *other* filter.
   function busRenderSidebar() {
+    busRenderPopular();
     document.getElementById('busFiltersPlaceholder').hidden = liveBuses.length > 0;
     document.getElementById('busFiltersBody').hidden = liveBuses.length === 0;
     if (!liveBuses.length) return;
@@ -5332,6 +5661,38 @@
   // ---------- results ----------
   function busRatingClass(r) { return r >= 4 ? 'good' : r >= 3.3 ? 'ok' : 'low'; }
 
+  // Registration-plate prefixes, so each bus carries a plate like AbhiBus shows.
+  const BUS_PLATE_STATE = { 'Karnataka': 'KA', 'Telangana': 'TG', 'Andhra Pradesh': 'AP', 'Tamil Nadu': 'TN', 'Kerala': 'KL', 'Maharashtra': 'MH', 'Goa': 'GA', 'Gujarat': 'GJ', 'Rajasthan': 'RJ', 'Delhi': 'DL', 'Uttar Pradesh': 'UP', 'Madhya Pradesh': 'MP', 'Punjab': 'PB', 'Haryana': 'HR', 'West Bengal': 'WB', 'Odisha': 'OD', 'Bihar': 'BR', 'Himachal Pradesh': 'HP', 'Uttarakhand': 'UK', 'Chhattisgarh': 'CG', 'Jharkhand': 'JH', 'Assam': 'AS', 'Chandigarh': 'CH', 'Puducherry': 'PY', 'Jammu and Kashmir': 'JK' };
+  const BUS_LANDMARKS = ['Near Bus Stop', 'Opp. Petrol Bunk', 'Next to Metro Pillar', 'Near Flyover', 'Opp. Bus Depot', 'Beside Main Road Junction', 'Near Railway Station Gate', 'In front of Travels Office', 'Under the Skywalk', 'Near Signal Circle', 'Opp. Bank ATM', 'Next to Bakery'];
+
+  // Extra per-bus details on their own random stream, so the base inventory stays the same.
+  function busEnrich(b, from, to, dateIso) {
+    const rng = busRng(`meta|${b.id}|${b.operatorName}|${from.name}|${to.name}|${dateIso}`);
+    const st = BUS_PLATE_STATE[from.state] || BUS_PLATE_STATE[to.state] || 'KA';
+    const L = 'ABCDEFGHJKLMNPRSTUVWXZ';
+    const letter = () => L[Math.floor(rng() * L.length)];
+    b.plate = `${st}${busPad(1 + Math.floor(rng() * 70))}-${letter()}${letter()}-${1000 + Math.floor(rng() * 9000)}`;
+    b.ageText = b.age || `${1 + Math.floor(rng() * 6)} Yr Old Bus`;
+    b.rtcState = b.isGovt ? (Object.keys(BUS_RTC).find(k => BUS_RTC[k].name === b.operatorName) || '') : '';
+    [[b.boardingDetails, b.fromName], [b.droppingDetails, b.toName]].forEach(([list, city]) => list.forEach(p => {
+      let lm = busPick(rng, BUS_LANDMARKS);
+      if (lm.endsWith('Pillar')) lm += ` No. ${100 + Math.floor(rng() * 900)}`;
+      p.title = `${p.name} - ${lm}`;
+      p.address = `${lm}, ${p.name} (${city})`;
+    }));
+  }
+
+  function busShortDate(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  }
+  function busLongDate(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function busPointDate(p) { return busIsoAddDays(busSearchCtx.date, Math.floor((p.abs || 0) / 1440)); }
+  function busSeatFree(s) { return s.status === 'available' || s.status === 'ladies' || s.status === 'gents'; }
+
   function renderBusCard(b) {
     const plusDay = b.arrMins >= 1440 ? `<sup>+${Math.floor(b.arrMins / 1440)}</sup>` : '';
     const open = busOpenPanel.id === b.id;
@@ -5342,9 +5703,12 @@
             ${b.isGovt ? '<span class="ab-govt">Govt · RTC</span>' : ''}
             ${b.isElectric ? '<span class="ab-electric">⚡ Electric</span>' : ''}
           </div>
-          <div class="ab-price">
-            ${b.save ? `<div class="ab-save-row"><span class="ab-save">Save ₹${b.save}</span><s>${busRupee(b.originalFare)}</s></div>` : ''}
-            <div class="ab-from">From <strong>${busRupee(b.fare)}</strong></div>
+          <div class="ab-top-right">
+            ${b.plate ? `<span class="ab-plate" title="Bus registration number">${b.plate}</span>` : ''}
+            <div class="ab-price">
+              ${b.save ? `<div class="ab-save-row"><span class="ab-save">Save ₹${b.save}</span><s>${busRupee(b.originalFare)}</s></div>` : ''}
+              <div class="ab-from">From <strong>${busRupee(b.fare)}</strong></div>
+            </div>
           </div>
         </div>
         <div class="ab-card-mid">
@@ -5375,7 +5739,7 @@
             <span class="ab-rcount">${BUS_ICONS.user} ${b.ratingCount.toLocaleString('en-IN')}</span>
             ${b.liveTracking ? `<span class="ab-ico" title="Live bus tracking">${BUS_ICONS.pin}</span>` : ''}
             ${b.amenities.includes('Charging Point') ? `<span class="ab-ico" title="Charging point">${BUS_ICONS.plug}</span>` : ''}
-            ${b.age ? `<span class="ab-new">${BUS_ICONS.bus} ${b.age}</span>` : ''}
+            ${b.ageText ? `<span class="ab-new${b.isNew ? ' is-new' : ''}">${BUS_ICONS.bus} ${busEsc(b.ageText)}</span>` : ''}
             <span class="ab-safety">✓ Bus Safety Check</span>
           </div>
           <button type="button" class="ab-details-btn" data-action="details">Bus details <span class="ab-caret">${open && busOpenPanel.kind === 'details' ? '▴' : '▾'}</span></button>
@@ -5384,7 +5748,65 @@
       </article>`;
   }
 
+  // State transport buses are collapsed into one card per corporation ("View Buses").
+  function busGroupUnits(data) {
+    const units = [], groups = new Map();
+    data.forEach(b => {
+      if (!b.isGovt) { units.push(b); return; }
+      let g = groups.get(b.operatorName);
+      if (!g) { g = { rtc: b.operatorName, buses: [] }; groups.set(b.operatorName, g); units.push(g); }
+      g.buses.push(b);
+    });
+    const out = units.map(u => (u.rtc && u.buses.length < 2) ? u.buses[0] : u);
+    if (busSort.key) return out;
+    // With the default (recommended) order, state transport sits near the top like AbhiBus.
+    const grp = out.filter(u => u.rtc), rest = out.filter(u => !u.rtc);
+    return [...rest.slice(0, 2), ...grp, ...rest.slice(2)];
+  }
+
+  function busRenderGroup(g) {
+    const open = busOpenGroups.has(g.rtc);
+    const seats = g.buses.reduce((n, b) => n + b.seatsAvailable, 0);
+    const from = Math.min(...g.buses.map(b => b.fare));
+    const state = g.buses[0].rtcState;
+    return `
+      <section class="ab-group${open ? ' is-open' : ''}" data-rtc="${busEsc(g.rtc)}">
+        <div class="ab-group-head">
+          <span class="ab-group-logo" aria-hidden="true">${BUS_ICONS.bus}</span>
+          <div class="ab-group-info">
+            <div class="ab-group-name">${busEsc(g.rtc)} <span>(State transport${state ? ` · ${busEsc(state)}` : ''})</span></div>
+            <div class="ab-group-sub">${g.buses.length} Buses, ${seats} Seats Available</div>
+          </div>
+          <div class="ab-group-cta">
+            <div class="ab-from">From <strong>${busRupee(from)}</strong></div>
+            <button type="button" class="ab-group-btn" data-action="group" aria-expanded="${open}">${open ? 'Hide Buses ▴' : 'View Buses ▾'}</button>
+          </div>
+        </div>
+        ${open ? `<div class="ab-group-list">${g.buses.map(renderBusCard).join('')}</div>` : ''}
+      </section>`;
+  }
+
+  // "Popular Filters" strip above the results: boarding points, dropping points, operators.
+  function busRenderPopular() {
+    const wrap = document.getElementById('busPopular');
+    if (!wrap) return;
+    wrap.hidden = !liveBuses.length;
+    if (!liveBuses.length) return;
+    const key = { boarding: 'boardingPoints', dropping: 'droppingPoints' }[busPopTab];
+    const counts = {};
+    liveBuses.forEach(b => (key ? b[key] : [b.operatorName]).forEach(v => { counts[v] = (counts[v] || 0) + 1; }));
+    const items = Object.keys(counts).sort((a, c) => counts[c] - counts[a] || a.localeCompare(c)).slice(0, 14);
+    wrap.querySelectorAll('.ab-pop-tab').forEach(t => {
+      const on = t.dataset.pop === busPopTab;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on);
+    });
+    document.getElementById('busPopChips').innerHTML = items.map((v, i) => `
+      <button type="button" class="ab-pop-chip${busFilters[busPopTab].has(v) ? ' active' : ''}" data-val="${busEsc(v)}" aria-pressed="${busFilters[busPopTab].has(v)}">${i === 0 ? '<small>Popular</small>' : ''}${busEsc(v)}</button>`).join('');
+  }
+
   function busRenderDetails(b, tab = 'amenities') {
+
     const tabs = [['amenities', 'Amenities'], ['points', 'Boarding & Dropping'], ['policy', 'Cancellation Policy'], ['reviews', 'Reviews']];
     let body = '';
     if (tab === 'amenities') {
@@ -5410,52 +5832,129 @@
       <div class="ab-details-body">${body}</div></div>`;
   }
 
-  function busSeatHtml(s) {
+  // ---------- seat layout (AbhiBus-style: decks drawn sideways, driver on the left) ----------
+  function busSeatHtml(s, gridRow, gridCol) {
     const sel = busSelectedSeats.includes(s.id);
-    const cls = ['ab-seat', s.kind, s.status, sel ? 'selected' : ''].join(' ');
     const booked = s.status === 'booked' || s.status === 'bookedF';
-    const title = booked ? `${s.id} · Booked` : `${s.id} · ${busRupee(s.price)}${s.status === 'ladies' ? ' · Reserved for ladies' : ''}`;
-    return `<button type="button" class="${cls}" data-action="seat" data-seat="${s.id}" ${booked ? 'disabled' : ''} title="${title}" aria-label="${title}">
+    const dim = !booked && busPriceChip != null && s.price !== busPriceChip;
+    const cls = ['ab-seat', s.kind, s.status, sel ? 'selected' : '', dim ? 'dim' : ''].filter(Boolean).join(' ');
+    const note = s.status === 'ladies' ? ' · For female passengers' : s.status === 'gents' ? ' · For male passengers' : '';
+    const title = booked ? `${s.id} · Booked${s.status === 'bookedF' ? ' by a female passenger' : ''}` : `${s.id} · ${busRupee(s.price)}${note}`;
+    return `<button type="button" class="${cls}" style="grid-row:${gridRow};grid-column:${gridCol}" data-action="seat" data-seat="${s.id}" ${booked ? 'disabled' : ''} title="${title}" aria-label="${title}" aria-pressed="${sel}">
       ${booked ? '' : `<span class="ab-seat-price">₹${s.price}</span>`}</button>`;
   }
 
-  function busRenderSeatPanel(b) {
-    const decks = b.layout.decks.map((d, di) => `
-      <div class="ab-deck">
-        <div class="ab-deck-head"><span>${d.name === 'Seats' ? 'Seater' : d.name + ' Deck'}</span>${di === 0 ? `<span class="ab-wheel" title="Driver">${BUS_ICONS.wheel}</span>` : ''}</div>
-        <div class="ab-deck-grid cols-${d.rows[0].length}">
-          ${d.rows.map(row => row.map(s => s ? busSeatHtml(s) : '<span class="ab-aisle"></span>').join('')).join('')}
-        </div>
-      </div>`).join('');
-    const seats = b.layout.seats.filter(s => busSelectedSeats.includes(s.id));
-    const total = seats.reduce((sum, s) => sum + s.price, 0);
-    const pointList = (kind, pts) => pts.map(p => `
-      <label class="ab-radio"><input type="radio" name="bus-${kind}-${b.id}" value="${busEsc(p.name)}" ${busChosenPoints[kind] === p.name ? 'checked' : ''} data-action="point" data-kind="${kind}">
-      <strong>${formatTime12hr(p.time)}</strong><span>${busEsc(p.name)}</span></label>`).join('');
-    const ready = seats.length && busChosenPoints.boarding && busChosenPoints.dropping;
+  // A deck is stored front-to-back as rows of [window, aisle, pair…]; it is drawn
+  // turned sideways, so each stored row becomes a column and the front sits on the left.
+  function busDeckHtml(d, withWheel) {
+    const ncols = d.rows[0].length;
+    const aisle = d.rows[0].findIndex(x => !x);
+    const rowsTpl = Array.from({ length: ncols }, (_, i) => (ncols - 1 - i) === aisle ? '10px' : 'auto').join(' ');
+    const cells = [];
+    d.rows.forEach((row, r) => row.forEach((s, c) => { if (s) cells.push(busSeatHtml(s, ncols - c, r + 1)); }));
+    const kind = (d.rows.flat().find(Boolean) || {}).kind || 'seater';
     return `
-      <div class="ab-seat-panel" data-bus="${b.id}">
-        <div class="ab-seat-map">
-          <div class="ab-legend">
-            <span><i class="lg available"></i>Available</span><span><i class="lg selected"></i>Selected</span>
-            <span><i class="lg booked"></i>Booked</span><span><i class="lg ladies"></i>For ladies</span><span><i class="lg bookedF"></i>Booked by female</span>
-          </div>
-          <div class="ab-decks">${decks}</div>
-        </div>
-        <div class="ab-seat-side">
-          <div class="ab-side-block"><h5>Boarding point</h5><div class="ab-radio-list">${pointList('boarding', b.boardingDetails)}</div></div>
-          <div class="ab-side-block"><h5>Dropping point</h5><div class="ab-radio-list">${pointList('dropping', b.droppingDetails)}</div></div>
-          <div class="ab-side-summary">
-            <div class="ab-sum-row"><span>Seat(s)</span><strong>${seats.length ? seats.map(s => s.id).join(', ') : '—'}</strong></div>
-            <div class="ab-sum-row"><span>Fare</span><strong>${seats.length ? busRupee(total) : '—'}</strong></div>
-            <button type="button" class="ab-proceed" data-action="proceed" ${ready ? '' : 'disabled'}>${!seats.length ? 'Select seat(s) to continue' : !ready ? 'Pick boarding & dropping' : 'Proceed to Book'}</button>
-            <p class="ab-muted">Up to 6 seats per booking.</p>
-          </div>
+      <div class="ab-deck-row">
+        <div class="ab-deck-label">${d.name === 'Seats' ? 'Seater' : d.name}</div>
+        <div class="ab-deck ${kind}">
+          <span class="${withWheel ? 'ab-wheel' : 'ab-wheel-space'}" ${withWheel ? 'title="Driver"' : 'aria-hidden="true"'}>${withWheel ? BUS_ICONS.wheel : ''}</span>
+          <div class="ab-deck-grid" style="grid-template-rows:${rowsTpl};grid-template-columns:repeat(${d.rows.length}, auto)">${cells.join('')}</div>
         </div>
       </div>`;
   }
 
+  function busSpLeftHtml(b) {
+    const prices = [...new Set(b.layout.seats.filter(busSeatFree).map(s => s.price))].sort((x, y) => x - y);
+    const decks = [...b.layout.decks].sort((x, y) => (y.name === 'Upper') - (x.name === 'Upper'));
+    const lg = (cls, label) => `<span><i class="lg ${cls}"></i>${label}</span>`;
+    return `
+      <div class="ab-price-chips" role="group" aria-label="Show seats by price">
+        <button type="button" class="${busPriceChip == null ? 'active' : ''}" data-action="pchip" data-price="">All</button>
+        ${prices.map(p => `<button type="button" class="${busPriceChip === p ? 'active' : ''}" data-action="pchip" data-price="${p}">₹${p}</button>`).join('')}
+      </div>
+      <div class="ab-seat-map">${decks.map(d => busDeckHtml(d, d.name !== 'Upper')).join('')}</div>
+      <div class="ab-legend">
+        ${lg('available', 'Available')}${lg('ladies', 'For Female')}${lg('gents', 'For Male')}${lg('bookedF', 'Female booked')}${lg('booked', 'Booked')}${lg('selected', 'Selected')}
+      </div>`;
+  }
+
+  function busSpListHtml(b) {
+    const kind = busPointTab;
+    const list = kind === 'boarding' ? b.boardingDetails : b.droppingDetails;
+    const q = busPointQuery.trim().toLowerCase();
+    const rows = list.filter(p => !q || `${p.title || p.name} ${p.address || ''}`.toLowerCase().includes(q));
+    if (!rows.length) return `<div class="ab-empty-list">No ${kind} points match “${busEsc(busPointQuery)}”</div>`;
+    return rows.map(p => {
+      const d = busPointDate(p);
+      const on = busChosenPoints[kind] === p.name;
+      return `
+        <label class="ab-pt${on ? ' checked' : ''}">
+          <input type="radio" name="bus-${kind}-${b.id}" value="${busEsc(p.name)}" ${on ? 'checked' : ''} data-action="point" data-kind="${kind}">
+          <span class="ab-pt-text"><strong>${busEsc(p.title || p.name)}</strong><small>${busEsc(p.address || '')}</small></span>
+          <span class="ab-pt-time"><strong>${formatTime12hr(p.time)}</strong>${(kind === 'dropping' || d !== busSearchCtx.date) ? `<small>${busShortDate(d)}</small>` : ''}</span>
+        </label>`;
+    }).join('');
+  }
+
+  function busSpTabsHtml() {
+    const tab = (kind, label) => {
+      const chosen = busChosenPoints[kind];
+      const on = busPointTab === kind;
+      return `<button type="button" class="ab-pt-tab${on ? ' active' : ''}${chosen ? ' done' : ''}" data-action="ptab" data-kind="${kind}" role="tab" aria-selected="${on}">
+        <span class="ab-pt-tab-label">${chosen ? '✓ ' : ''}${label}</span>${chosen ? `<small>${busEsc(chosen)}</small>` : ''}</button>`;
+    };
+    return `<div class="ab-pt-tabs" role="tablist">${tab('boarding', 'Boarding Points')}${tab('dropping', 'Dropping Points')}</div>`;
+  }
+
+  function busSpPointsHtml(b) {
+    const label = busPointTab === 'boarding' ? 'Boarding' : 'Dropping';
+    return `${busSpTabsHtml()}
+      <div class="ab-pt-search"><input type="search" data-role="ptsearch" placeholder="Search ${label} Point" value="${busEsc(busPointQuery)}" aria-label="Search ${label.toLowerCase()} point">${BUS_ICONS.search}</div>
+      <div class="ab-pt-list" role="radiogroup" aria-label="${label} points">${busSpListHtml(b)}</div>`;
+  }
+
+  function busSpFootHtml(b) {
+    const seats = b.layout.seats.filter(s => busSelectedSeats.includes(s.id));
+    const total = seats.reduce((n, s) => n + s.price, 0);
+    const need = !seats.length ? 'Select seat(s) to continue'
+      : !busChosenPoints.boarding ? 'Select a boarding point'
+      : !busChosenPoints.dropping ? 'Select a dropping point' : '';
+    return `
+      ${b.offer ? `<div class="ab-sp-offer">🔥 ${busEsc(b.offer)}</div>` : ''}
+      <div class="ab-sp-bar">
+        <div class="ab-sp-amt"><strong>${busRupee(total)}</strong><small>Excl. of taxes</small></div>
+        <div class="ab-sp-cnt"><strong>${seats.length}</strong><small>Seat(s)${seats.length ? ': ' + seats.map(s => s.id).join(', ') : ''}</small></div>
+        <button type="button" class="ab-proceed" data-action="proceed" ${need ? 'disabled' : ''}>Proceed</button>
+      </div>
+      ${need ? `<p class="ab-sp-need">${need}</p>` : ''}`;
+  }
+
+  function busRenderSeatPanel(b) {
+    return `
+      <div class="ab-seat-panel" data-bus="${b.id}">
+        <div class="ab-sp-left">${busSpLeftHtml(b)}</div>
+        <div class="ab-sp-right">
+          <div class="ab-sp-pts">${busSpPointsHtml(b)}</div>
+          <div class="ab-sp-foot">${busSpFootHtml(b)}</div>
+        </div>
+      </div>`;
+  }
+
+  // Redraw parts of an open seat panel without losing the seat-map scroll or the search box.
+  function busSpRefresh(card, b, parts) {
+    const map = { left: ['.ab-sp-left', busSpLeftHtml], pts: ['.ab-sp-pts', busSpPointsHtml], foot: ['.ab-sp-foot', busSpFootHtml], list: ['.ab-pt-list', busSpListHtml] };
+    parts.forEach(p => {
+      const el = card.querySelector(map[p][0]);
+      if (!el) return;
+      const sm = el.querySelector('.ab-seat-map');
+      const x = sm ? sm.scrollLeft : 0;
+      el.innerHTML = map[p][1](b);
+      if (sm) el.querySelector('.ab-seat-map').scrollLeft = x;
+    });
+  }
+
   function renderBusResults(opts = {}) {
+
     const data = busFilteredSorted();
     const list = document.getElementById('busResultsList');
     const container = document.getElementById('busResults');
@@ -5471,16 +5970,17 @@
     document.getElementById('busResultsSummary').innerHTML =
       `${BUS_ICONS.bus} Showing <strong>${data.length}</strong> of ${liveBuses.length} buses on this route${busDataStatusHtml(busDataMeta)}${activeCount ? ` · <button type="button" class="ab-link" onclick="busClearFilters()">Clear ${activeCount} filter${activeCount > 1 ? 's' : ''}</button>` : ''}`;
 
-    const shown = data.slice(0, busVisibleCount);
-    list.innerHTML = shown.length ? shown.map(renderBusCard).join('') : `
+    const units = busGroupUnits(data);
+    const shown = units.slice(0, busVisibleCount);
+    list.innerHTML = shown.length ? shown.map(u => u.rtc ? busRenderGroup(u) : renderBusCard(u)).join('') : `
       <div class="ab-empty">
         ${BUS_ART.noResults}
         <h5>No buses match these filters</h5>
         <p>Try removing a filter or widening the price range.</p>
         <button type="button" class="ab-outline-btn" onclick="busClearFilters()">Clear all filters</button>
       </div>`;
-    document.getElementById('busLoadMore').innerHTML = data.length > busVisibleCount
-      ? `<button type="button" class="ab-outline-btn" onclick="busVisibleCount += 20; renderBusResults({ keepSidebarLists: true })">Show ${Math.min(20, data.length - busVisibleCount)} more buses</button>` : '';
+    document.getElementById('busLoadMore').innerHTML = units.length > busVisibleCount
+      ? `<button type="button" class="ab-outline-btn" onclick="busVisibleCount += 20; renderBusResults({ keepSidebarLists: true })">Show more buses</button>` : '';
 
     busRenderSidebar();
   }
@@ -5549,6 +6049,8 @@
     busVisibleCount = 20;
     busOpenPanel = { id: null, kind: null };
     busSelectedSeats = [];
+    busOpenGroups.clear();
+    busPriceChip = null;
     ['type', 'dep', 'arr', 'boarding', 'dropping', 'operators', 'quick'].forEach(k => busFilters[k].clear());
     busFilters.priceMin = busFilters.priceMax = null;
     document.querySelectorAll('.ab-list-search').forEach(i => { i.value = ''; });
@@ -5596,146 +6098,403 @@
   document.addEventListener('click', (e) => {
     const actionEl = e.target.closest('#busResultsList [data-action]');
     if (!actionEl) return;
+    const action = actionEl.dataset.action;
+    if (action === 'group') {
+      const rtc = actionEl.closest('.ab-group').dataset.rtc;
+      busOpenGroups.has(rtc) ? busOpenGroups.delete(rtc) : busOpenGroups.add(rtc);
+      renderBusResults({ keepSidebarLists: true });
+      return;
+    }
     const card = actionEl.closest('.ab-card');
     const id = card && card.dataset.id;
     const b = id && busById(id);
     if (!b) return;
-    const action = actionEl.dataset.action;
 
     if (action === 'seats' || action === 'details') {
       const prev = busOpenPanel.id;
       if (busOpenPanel.id === id && busOpenPanel.kind === action) busOpenPanel = { id: null, kind: null };
       else {
-        if (busOpenPanel.id !== id || action === 'seats') { busSelectedSeats = []; busChosenPoints = { boarding: null, dropping: null }; }
-        if (action === 'seats') busChosenPoints = { boarding: b.boardingDetails[0].name, dropping: b.droppingDetails[b.droppingDetails.length - 1].name };
+        if (busOpenPanel.id !== id || action === 'seats') {
+          busSelectedSeats = [];
+          busChosenPoints = { boarding: null, dropping: null };
+          busPointTab = 'boarding'; busPointQuery = ''; busPriceChip = null;
+        }
         busOpenPanel = { id, kind: action };
       }
       if (prev && prev !== id) busRerenderCard(prev);
       busRerenderCard(id, true);
     } else if (action === 'dtab') {
-      const wrap = card.querySelector('.ab-expand');
-      wrap.innerHTML = busRenderDetails(b, actionEl.dataset.tab);
+      card.querySelector('.ab-expand').innerHTML = busRenderDetails(b, actionEl.dataset.tab);
     } else if (action === 'seat') {
       const sid = actionEl.dataset.seat;
       const i = busSelectedSeats.indexOf(sid);
       if (i >= 0) busSelectedSeats.splice(i, 1);
       else if (busSelectedSeats.length >= 6) { busShowToast('You can book up to 6 seats at a time'); return; }
       else busSelectedSeats.push(sid);
-      card.querySelector('.ab-expand').innerHTML = busRenderSeatPanel(b);
+      busSpRefresh(card, b, ['left', 'foot']);
+    } else if (action === 'pchip') {
+      busPriceChip = actionEl.dataset.price ? Number(actionEl.dataset.price) : null;
+      busSpRefresh(card, b, ['left']);
+    } else if (action === 'ptab') {
+      busPointTab = actionEl.dataset.kind;
+      busPointQuery = '';
+      busSpRefresh(card, b, ['pts']);
     } else if (action === 'proceed') {
-      busOpenBooking(b);
+      busCoOpen(b);
     }
   });
   document.addEventListener('change', (e) => {
     const r = e.target.closest('#busResultsList input[data-action="point"]');
     if (!r) return;
-    busChosenPoints[r.dataset.kind] = r.value;
     const card = r.closest('.ab-card');
     const b = busById(card.dataset.id);
-    const side = card.querySelector('.ab-side-summary');
-    const tmp = document.createElement('div');
-    tmp.innerHTML = busRenderSeatPanel(b);
-    side.replaceWith(tmp.querySelector('.ab-side-summary'));
+    busChosenPoints[r.dataset.kind] = r.value;
+    if (r.dataset.kind === 'boarding' && !busChosenPoints.dropping) {
+      // Boarding picked → move straight on to dropping points, as AbhiBus does.
+      busPointTab = 'dropping'; busPointQuery = '';
+      busSpRefresh(card, b, ['pts', 'foot']);
+    } else {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = busSpTabsHtml();
+      card.querySelector('.ab-pt-tabs').replaceWith(tmp.firstElementChild);
+      card.querySelectorAll('.ab-pt').forEach(l => l.classList.toggle('checked', l.querySelector('input').checked));
+      busSpRefresh(card, b, ['foot']);
+    }
+  });
+  document.addEventListener('input', (e) => {
+    const s = e.target.closest('#busResultsList input[data-role="ptsearch"]');
+    if (!s) return;
+    const card = s.closest('.ab-card');
+    busPointQuery = s.value;
+    busSpRefresh(card, busById(card.dataset.id), ['list']);
   });
 
-  function busOpenBooking(b) {
+  /* ---------- Bus checkout: Passenger Details → Payment → Ticket ----------
+     Mirrors AbhiBus's /passengerinfo page: trip details, contact details,
+     passengers per seat (name, age, gender), trip assurance, a travel
+     protection add-on, billing address and a fare summary with
+     "Continue to Pay". TravelMate has no payment gateway, so payment is a demo. */
+  // Booking pages sit just under the site header, which stays visible.
+  function tmPinBelowHeader() {
+    const nav = document.querySelector('.navbar');
+    document.documentElement.style.setProperty('--tm-nav-h', `${nav ? nav.offsetHeight : 0}px`);
+  }
+  window.addEventListener('resize', () => { if (document.body.classList.contains('bk-lock')) tmPinBelowHeader(); });
+
+  let busCo = null;
+  let busCoLoginShown = false;
+  const BUS_PROTECT_FEE = 12;
+  const BUS_STATES = ['Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'];
+
+  function busCoSession() { try { return typeof tmSession === 'function' ? tmSession() : null; } catch (e) { return null; } }
+
+  function busCoOpen(b) {
     const seats = b.layout.seats.filter(s => busSelectedSeats.includes(s.id));
-    const base = seats.reduce((s, x) => s + x.price, 0);
-    const discount = b.save * seats.length;
-    const gst = Math.round((base - discount) * 0.05);
-    const total = base - discount + gst;
     const bp = b.boardingDetails.find(p => p.name === busChosenPoints.boarding);
     const dp = b.droppingDetails.find(p => p.name === busChosenPoints.dropping);
-    const modal = document.getElementById('busBookingModal');
-    modal.innerHTML = `
-      <div class="ab-modal-card" role="dialog" aria-modal="true" aria-labelledby="busModalTitle">
-        <button type="button" class="ab-modal-close" onclick="busCloseBooking()" aria-label="Close">×</button>
-        <h3 id="busModalTitle">Passenger details</h3>
-        <div class="ab-trip-sum">
-          <div><strong>${busEsc(b.operatorName)}</strong><span>${busEsc(b.busType)}</span></div>
-          <div><strong>${formatTime12hr(bp.time)} · ${busEsc(bp.name)}</strong><span>${busPrettyDate(busSearchCtx.date)}</span></div>
-          <div><strong>${formatTime12hr(dp.time)} · ${busEsc(dp.name)}</strong><span>${busEsc(b.toName)}</span></div>
-        </div>
-        <form id="busPaxForm" novalidate>
-          ${seats.map((s, i) => `
-            <fieldset class="ab-pax">
-              <legend>Passenger ${i + 1} · Seat ${s.id}${s.status === 'ladies' ? ' <em>(reserved for ladies)</em>' : ''}</legend>
-              <label>Name<input name="name${i}" required minlength="2" placeholder="Full name"></label>
-              <label class="ab-age">Age<input name="age${i}" type="number" min="1" max="110" required></label>
-              <div class="ab-gender" role="radiogroup" aria-label="Gender">
-                <label><input type="radio" name="gender${i}" value="M" ${s.status === 'ladies' ? 'disabled' : ''} required> Male</label>
-                <label><input type="radio" name="gender${i}" value="F" ${s.status === 'ladies' ? 'checked' : ''}> Female</label>
-              </div>
-            </fieldset>`).join('')}
-          <fieldset class="ab-pax ab-pax-contact">
-            <legend>Contact details <small>(ticket is sent here)</small></legend>
-            <label>Mobile<input name="phone" inputmode="numeric" pattern="[6-9][0-9]{9}" required placeholder="10-digit mobile"></label>
-            <label>Email<input name="email" type="email" required placeholder="you@example.com"></label>
-          </fieldset>
-          <div class="ab-fare">
-            <div><span>Base fare (${seats.length} seat${seats.length > 1 ? 's' : ''})</span><span>${busRupee(base)}</span></div>
-            ${discount ? `<div class="ab-disc"><span>Offer discount</span><span>− ${busRupee(discount)}</span></div>` : ''}
-            <div><span>GST (5%)</span><span>${busRupee(gst)}</span></div>
-            <div class="ab-total"><span>Total</span><span>${busRupee(total)}</span></div>
-          </div>
-          <div class="ab-form-error" id="busPaxError" hidden></div>
-          <button type="submit" class="ab-proceed">Confirm booking · ${busRupee(total)}</button>
-          <p class="ab-muted ab-center">Demo checkout — no payment is taken and no real seat is reserved.</p>
-        </form>
-      </div>`;
-    modal.classList.add('open');
-    document.body.style.overflow = 'hidden';
-    modal.querySelector('input').focus();
-    document.getElementById('busPaxForm').addEventListener('submit', (ev) => {
-      ev.preventDefault();
-      const form = ev.target;
-      const err = document.getElementById('busPaxError');
-      if (!form.checkValidity()) {
-        const bad = form.querySelector(':invalid');
-        err.textContent = bad && bad.name === 'phone' ? 'Enter a valid 10-digit mobile number.' : bad && bad.name === 'email' ? 'Enter a valid email address.' : 'Please fill in name, age and gender for every passenger.';
-        err.hidden = false;
-        bad && bad.focus();
-        return;
-      }
-      const pax = seats.map((s, i) => ({ seat: s.id, name: form[`name${i}`].value.trim(), age: form[`age${i}`].value, gender: form.querySelector(`input[name="gender${i}"]:checked`).value }));
-      busConfirmBooking(b, seats, pax, { bp, dp, total, email: form.email.value, phone: form.phone.value });
-    });
+    if (!seats.length || !bp || !dp) return;
+    const s = busCoSession();
+    const base = seats.reduce((n, x) => n + x.price, 0);
+    const fromStop = busFindStopByName(busSearchCtx.from) || {};
+    busCo = {
+      b, seats, bp, dp, date: busSearchCtx.date, step: 1, base,
+      assurePrice: Math.max(49, Math.round(base * 0.12)),
+      pax: seats.map(x => ({ name: '', age: '', gender: x.status === 'ladies' ? 'F' : x.status === 'gents' ? 'M' : '' })),
+      phone: s && s.phone ? String(s.phone).replace(/\D/g, '').slice(-10) : '',
+      email: (s && s.email) || '',
+      assure: null, protect: false,
+      billing: { address: bp.address || bp.name, city: b.fromName, state: BUS_STATES.includes(fromStop.state) ? fromStop.state : '', pin: '' },
+      billingEdit: false, pay: 'upi', errors: {}, ref: null
+    };
+    document.getElementById('busCheckout').classList.add('open');
+    tmPinBelowHeader();
+    document.body.classList.add('bk-lock');
+    busCoRender();
+    // Like AbhiBus, offer a login once on the passenger page (it can be skipped).
+    if (!s && !busCoLoginShown && typeof tmOpenLogin === 'function') {
+      busCoLoginShown = true;
+      setTimeout(() => { if (busCo && busCo.step === 1) tmOpenLogin('login'); }, 400);
+    }
   }
 
-  function busConfirmBooking(b, seats, pax, info) {
-    seats.forEach((s, i) => { s.status = pax[i].gender === 'F' ? 'bookedF' : 'booked'; });
-    b.seatsAvailable = b.layout.seats.filter(s => s.status === 'available' || s.status === 'ladies').length;
-    const ref = 'TMB' + busHash(Date.now() + b.id).toString(36).toUpperCase().slice(0, 7);
-    document.querySelector('#busBookingModal .ab-modal-card').innerHTML = `
-      <button type="button" class="ab-modal-close" onclick="busCloseBooking()" aria-label="Close">×</button>
-      <div class="ab-ticket">
-        <div class="ab-ticket-ok">✓</div>
-        <h3>Booking confirmed</h3>
-        <p class="ab-muted">Booking ID <strong>${ref}</strong> · ticket details for ${busEsc(info.email)}</p>
-        <div class="ab-ticket-route">
-          <div><strong>${formatTime12hr(info.bp.time)}</strong><span>${busEsc(info.bp.name)}</span><small>${busEsc(b.fromName)}</small></div>
-          <div class="ab-ticket-mid">${busPrettyDate(busSearchCtx.date)}<i></i>${busDurText(b.durMins)}</div>
-          <div><strong>${formatTime12hr(info.dp.time)}</strong><span>${busEsc(info.dp.name)}</span><small>${busEsc(b.toName)}</small></div>
-        </div>
-        <div class="ab-ticket-bus"><strong>${busEsc(b.operatorName)}</strong> · ${busEsc(b.busType)}</div>
-        <table class="ab-ticket-pax"><thead><tr><th>Passenger</th><th>Age</th><th>Seat</th></tr></thead>
-          <tbody>${pax.map(p => `<tr><td>${busEsc(p.name)} (${p.gender})</td><td>${busEsc(p.age)}</td><td>${p.seat}</td></tr>`).join('')}</tbody></table>
-        <div class="ab-ticket-total"><span>Total paid</span><strong>${busRupee(info.total)}</strong></div>
-        <p class="ab-muted ab-center">Demo booking — no payment was collected.</p>
-        <button type="button" class="ab-proceed" onclick="busCloseBooking()">Done</button>
+  function busCoFare() {
+    const c = busCo, n = c.seats.length;
+    const gst = Math.round(c.base * 0.05);
+    const assure = c.assure === 'yes' ? c.assurePrice : 0;
+    const protect = c.protect ? BUS_PROTECT_FEE * n : 0;
+    return { n, base: c.base, gst, assure, protect, total: c.base + gst + assure + protect };
+  }
+
+  function busCoRender(keepScroll) {
+    const c = busCo;
+    if (!c) return;
+    const steps = ['Select Seats', 'Passenger Details', 'Payment', 'Ticket'];
+    const cur = c.step + 1;
+    document.getElementById('busCoSteps').innerHTML = steps.map((l, i) => {
+      const n = i + 1;
+      return `<div class="bk-step ${n === cur ? 'active' : n < cur ? 'done' : ''}"><div class="dot">${n < cur ? '✓' : n}</div>${l}</div>`;
+    }).join('');
+    document.getElementById('busCoBackBtn').hidden = c.step === 3;
+    document.getElementById('busCoBody').innerHTML = c.step === 3 ? busCoStep3() : `
+      <div class="bk-grid">
+        <div class="bk-main">${c.step === 1 ? busCoStep1() : busCoStep2()}</div>
+        <aside class="bk-side" id="busCoSide">${busCoSide()}</aside>
       </div>`;
+    if (!keepScroll) document.getElementById('busCoScroll').scrollTop = 0;
+  }
+  function busCoRenderSide() { const el = document.getElementById('busCoSide'); if (el) el.innerHTML = busCoSide(); }
+
+  function busCoTripCard() {
+    const { b, bp, dp, date } = busCo;
+    const bd = busPointDate(bp), dd = busPointDate(dp);
+    return `
+      <div class="bk-card bus-co-trip">
+        <div class="bus-co-head"><h4>${BUS_ICONS.bus} Trip Details</h4>${busCo.step === 1 ? '<button type="button" class="bk-link" onclick="busCoClose()">Change</button>' : ''}</div>
+        <div class="bus-co-route">
+          <div><span class="bus-co-city">${busEsc(b.fromName)}</span><strong>${busLongDate(bd)}, ${formatTime12hr(bp.time)}</strong><small>${busEsc(bp.title || bp.name)}</small></div>
+          <div class="bus-co-dur"><span>${busDurText((dp.abs || 0) - (bp.abs || 0))}</span></div>
+          <div class="end"><span class="bus-co-city">${busEsc(b.toName)}</span><strong>${busLongDate(dd)}, ${formatTime12hr(dp.time)}</strong><small>${busEsc(dp.title || dp.name)}</small></div>
+        </div>
+        <div class="bus-co-bus">
+          <div><strong>${busEsc(b.operatorName)}</strong><span>${busEsc(b.busType)}</span></div>
+          <div class="bus-co-tags">
+            ${b.ageText ? `<span class="ab-new${b.isNew ? ' is-new' : ''}">${BUS_ICONS.bus} ${busEsc(b.ageText)}</span>` : ''}
+            ${b.tag ? `<span class="ab-tag">${b.tag}</span>` : ''}
+            ${b.plate ? `<span class="ab-plate">${b.plate}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function busCoPaxRow(x, i) {
+    const p = busCo.pax[i], e = busCo.errors;
+    const lock = x.status === 'ladies' ? 'F' : x.status === 'gents' ? 'M' : '';
+    const g = (val, label) => `<button type="button" class="${p.gender === val ? 'on' : ''}" ${lock && lock !== val ? 'disabled' : ''} aria-pressed="${p.gender === val}" onclick="busCoGender(${i}, '${val}', this)">${label}</button>`;
+    return `
+      <div class="bus-co-pax">
+        <span class="bus-co-seat ${x.status}" title="Seat ${x.id}">${BUS_ICONS.seat} ${x.id}</span>
+        <input class="bk-in${e['name' + i] ? ' err' : ''}" placeholder="Name" value="${busEsc(p.name)}" maxlength="40" oninput="busCo.pax[${i}].name=this.value" aria-label="Passenger ${i + 1} name">
+        <input class="bk-in${e['age' + i] ? ' err' : ''}" placeholder="Age" inputmode="numeric" maxlength="3" value="${busEsc(p.age)}" oninput="this.value=this.value.replace(/\\D/g,'');busCo.pax[${i}].age=this.value" aria-label="Passenger ${i + 1} age">
+        <div class="bus-co-gender${e['gender' + i] ? ' err' : ''}" role="group" aria-label="Passenger ${i + 1} gender">${g('M', 'Male')}${g('F', 'Female')}</div>
+        ${lock ? `<small class="bus-co-lock ${lock === 'M' ? 'm' : ''}">This seat is reserved for a ${lock === 'F' ? 'female' : 'male'} passenger</small>` : ''}
+      </div>`;
+  }
+  function busCoGender(i, g, btn) {
+    busCo.pax[i].gender = g;
+    btn.parentElement.classList.remove('err');
+    btn.parentElement.querySelectorAll('button').forEach(x => { const on = x === btn; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+  }
+  function busCoSet(key, val) {
+    busCo[key] = val;
+    delete busCo.errors[key];
+    if (key === 'assure') document.getElementById('busCoAssure').classList.remove('err');
+    busCoRenderSide();
+  }
+
+  function busCoStep1() {
+    const c = busCo, s = busCoSession(), err = k => c.errors[k] ? ' err' : '';
+    const bl = c.billing;
+    return `
+      ${busCoTripCard()}
+      ${c.errors._form ? `<div class="bk-form-err" role="alert">${c.errors._form}</div>` : ''}
+      <div class="bk-card">
+        <h4>Contact Details <small>Your ticket and bus info will be sent here</small></h4>
+        ${s ? '' : `<div class="bk-login-hint">Have a TravelMate account? <button type="button" onclick="tmOpenLogin('login')">Login</button> to fill this in and unlock offers.</div>`}
+        <div class="bk-row2">
+          <label class="bus-co-field"><span>Mobile Number</span>
+            <div class="bk-phone"><span>+91</span><input class="bk-in${err('phone')}" inputmode="numeric" maxlength="10" placeholder="10-digit mobile" value="${busEsc(c.phone)}" oninput="this.value=this.value.replace(/\\D/g,'');busCo.phone=this.value" autocomplete="tel-national"></div>
+            ${c.errors.phone ? `<em class="bus-co-err">${c.errors.phone}</em>` : ''}
+          </label>
+          <label class="bus-co-field"><span>Email ID</span>
+            <input class="bk-in${err('email')}" type="email" placeholder="you@example.com" value="${busEsc(c.email)}" oninput="busCo.email=this.value.trim()" autocomplete="email">
+            ${c.errors.email ? `<em class="bus-co-err">${c.errors.email}</em>` : ''}
+          </label>
+        </div>
+      </div>
+
+      <div class="bk-card">
+        <h4>Passenger Details <small>Fill in passenger details for each seat</small></h4>
+        ${c.seats.map(busCoPaxRow).join('')}
+      </div>
+
+      <div class="bk-card bus-co-assure${err('assure')}" id="busCoAssure">
+        <div class="bus-co-assure-head"><span class="ab-assured">${BUS_ICONS.shield} TravelMate Assured</span><p>Secure your trip only at <strong>${busRupee(c.assurePrice)}</strong></p></div>
+        <div class="bus-co-benefits">
+          <div><b>₹0</b><strong>Zero cancellation charges</strong><span>if cancelled by you</span><em>${busRupee(c.base)} · 100% refund</em></div>
+          <div><b>1.5x</b><strong>Refund</strong><span>if cancelled by operator</span><em>${busRupee(Math.round(c.base * 1.5))} · 1.5x refund</em></div>
+          <div><b>100%</b><strong>Money-back guarantee</strong><span>for delays or quality issues</span><em>${busRupee(c.base)} · 100% refund</em></div>
+        </div>
+        <label class="bus-co-opt"><input type="radio" name="busCoAssure" ${c.assure === 'yes' ? 'checked' : ''} onchange="busCoSet('assure','yes')"><span>Secure this booking only</span><i class="bus-co-pop">Most Popular</i></label>
+        <label class="bus-co-opt"><input type="radio" name="busCoAssure" ${c.assure === 'no' ? 'checked' : ''} onchange="busCoSet('assure','no')"><span>No, I don't want this<small>Standard cancellation charges apply — up to the full fare close to departure</small></span></label>
+      </div>
+
+      <div class="bk-card">
+        <label class="bus-co-protect">
+          <span class="bus-co-protect-ico" aria-hidden="true">${BUS_ICONS.shield}</span>
+          <span><strong>Travel Protection Plan</strong><small>Protect your trip at just ${busRupee(BUS_PROTECT_FEE)} per person — cover for medical emergencies and lost baggage on this journey.</small></span>
+          <input type="checkbox" ${c.protect ? 'checked' : ''} onchange="busCoSet('protect', this.checked)" aria-label="Add Travel Protection Plan">
+        </label>
+      </div>
+
+      <div class="bk-card">
+        <div class="bus-co-head"><h4>Billing Address <small>For GST tax invoice</small></h4><button type="button" class="bk-link" onclick="busCoToggleBilling()">${c.billingEdit ? 'Done' : 'Edit ✎'}</button></div>
+        ${c.billingEdit ? `
+          <div class="bus-co-billing">
+            <label class="bus-co-field bus-co-wide"><span>Address</span><input class="bk-in" value="${busEsc(bl.address)}" oninput="busCo.billing.address=this.value"></label>
+            <label class="bus-co-field"><span>City</span><input class="bk-in" value="${busEsc(bl.city)}" oninput="busCo.billing.city=this.value"></label>
+            <label class="bus-co-field"><span>State</span><select class="bk-sel${err('billing')}" onchange="busCo.billing.state=this.value"><option value="">Select state</option>${BUS_STATES.map(st => `<option ${st === bl.state ? 'selected' : ''}>${st}</option>`).join('')}</select></label>
+            <label class="bus-co-field"><span>Pincode <small>(optional)</small></span><input class="bk-in${err('pin')}" inputmode="numeric" maxlength="6" value="${busEsc(bl.pin)}" oninput="this.value=this.value.replace(/\\D/g,'');busCo.billing.pin=this.value"></label>
+          </div>`
+        : `<p class="bus-co-addr${err('billing')}">${busEsc(bl.address)}<br>${busEsc(bl.city)}${bl.state ? `, ${busEsc(bl.state)}` : ' · <em>add your state</em>'}${bl.pin ? ` ${busEsc(bl.pin)}` : ''}</p>`}
+      </div>`;
+  }
+
+  function busCoToggleBilling() {
+    const bl = busCo.billing;
+    if (busCo.billingEdit && bl.pin && !/^[1-9]\d{5}$/.test(bl.pin)) { busCo.errors.pin = 1; busCoRender(true); return; }
+    delete busCo.errors.pin;
+    if (bl.state) delete busCo.errors.billing;
+    busCo.billingEdit = !busCo.billingEdit;
+    busCoRender(true);
+  }
+
+  function busCoSide() {
+    const f = busCoFare(), c = busCo;
+    const row = (label, sub, amt, cls = '') => `<div class="bk-fare-row ${cls}"><div>${label}${sub ? `<small>${sub}</small>` : ''}</div><div>${amt}</div></div>`;
+    return `
+      <div class="bk-fare">
+        <h5>Fare Details</h5>
+        ${row('Base Fare', `Seat ${c.seats.map(s => s.id).join(', ')}`, busRupee(f.base))}
+        ${row('GST', '5% on base fare', busRupee(f.gst))}
+        ${f.assure ? row('TravelMate Assured', 'Zero cancellation · 1.5x refund', busRupee(f.assure)) : ''}
+        ${f.protect ? row('Travel Protection', `${busRupee(BUS_PROTECT_FEE)} × ${f.n}`, busRupee(f.protect)) : ''}
+        ${row('Total Amount To Be Paid', '', busRupee(f.total), 'bk-fare-total')}
+      </div>
+      ${c.step === 1 ? `
+        <p class="bus-co-tc">By proceeding, I agree to TravelMate's T&amp;Cs and the operator's cancellation policy.</p>
+        <button type="button" class="bk-btn bk-btn-primary bus-co-cta" onclick="busCoContinue()">Continue to Pay ${busRupee(f.total)} »</button>` : ''}
+      ${c.step === 2 ? `
+        <button type="button" class="bk-btn bk-btn-primary bus-co-cta" onclick="busCoPay()">Pay ${busRupee(f.total)}</button>
+        <p class="bus-co-tc">Demo payment — nothing is charged.</p>` : ''}`;
+  }
+
+  function busCoContinue() {
+    const c = busCo, e = {};
+    if (!/^[6-9]\d{9}$/.test(c.phone)) e.phone = 'Enter a valid 10-digit mobile number';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(c.email)) e.email = 'Enter a valid email address';
+    c.pax.forEach((p, i) => {
+      if (!/^[A-Za-z][A-Za-z .'-]+$/.test(p.name.trim())) e['name' + i] = 1;
+      const a = Number(p.age);
+      if (!a || a < 1 || a > 110) e['age' + i] = 1;
+      if (!p.gender) e['gender' + i] = 1;
+    });
+    if (!c.assure) e.assure = 1;
+    if (!c.billing.state) e.billing = 1;
+    if (Object.keys(e).length) {
+      const msgs = [];
+      if (e.phone || e.email) msgs.push('Check your contact details');
+      if (Object.keys(e).some(k => /^(name|age|gender)\d/.test(k))) msgs.push('Fill in name, age and gender for every passenger');
+      if (e.assure) msgs.push('Choose whether to secure this trip with TravelMate Assured');
+      if (e.billing) msgs.push('Add the state in your billing address');
+      e._form = msgs.join(' · ');
+      c.errors = e;
+      if (e.billing) c.billingEdit = true;
+      busCoRender(true);
+      const first = document.querySelector('#busCoBody .bk-main .err:not(.bk-form-err)');
+      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    c.errors = {};
+    c.billingEdit = false;
+    c.step = 2;
+    busCoRender();
+  }
+
+  function busCoStep2() {
+    const c = busCo;
+    const methods = [['upi', 'UPI', 'Google Pay, PhonePe, Paytm or any UPI app'], ['card', 'Credit / Debit Card', 'Visa, Mastercard, RuPay, Amex'], ['netbanking', 'Net Banking', 'All major Indian banks'], ['wallet', 'Wallets', 'Paytm, Amazon Pay, MobiKwik']];
+    const g = { M: 'Male', F: 'Female' };
+    return `
+      ${busCoTripCard()}
+      <div class="bk-card">
+        <h4>Passengers <small>Ticket goes to +91 ${busEsc(c.phone)} · ${busEsc(c.email)}</small></h4>
+        <table class="bk-table"><thead><tr><th>Seat</th><th>Name</th><th>Age</th><th>Gender</th></tr></thead>
+          <tbody>${c.pax.map((p, i) => `<tr><td>${c.seats[i].id}</td><td>${busEsc(p.name.trim())}</td><td>${busEsc(p.age)}</td><td>${g[p.gender]}</td></tr>`).join('')}</tbody></table>
+        <div class="bk-links"><button type="button" class="bk-link" onclick="busCo.step=1;busCoRender()">✎ Edit details</button></div>
+      </div>
+      <div class="bk-card">
+        <h4>Payment Options</h4>
+        <div class="bus-co-paygrid">${methods.map(([k, l, d]) => `
+          <label class="bus-co-paym${c.pay === k ? ' on' : ''}"><input type="radio" name="busCoPay" ${c.pay === k ? 'checked' : ''} onchange="busCo.pay='${k}';document.querySelectorAll('.bus-co-paym').forEach(x=>x.classList.toggle('on',x.querySelector('input').checked))"><span><strong>${l}</strong><small>${d}</small></span></label>`).join('')}
+        </div>
+        <div class="bk-alert" style="margin-top:12px">TravelMate is a portfolio demo — no payment gateway is connected, so nothing is charged and no real seat is held.</div>
+      </div>`;
+  }
+
+  function busCoPay() {
+    const c = busCo;
+    c.seats.forEach((s, i) => { s.status = c.pax[i].gender === 'F' ? 'bookedF' : 'booked'; });
+    c.b.seatsAvailable = c.b.layout.seats.filter(busSeatFree).length;
+    c.ref = 'TMB' + busHash(Date.now() + c.b.id).toString(36).toUpperCase().slice(0, 7);
+    c.paidTotal = busCoFare().total;
+    c.step = 3;
     busSelectedSeats = [];
     busOpenPanel = { id: null, kind: null };
-    busRerenderCard(b.id);
+    busRerenderCard(c.b.id);
+    busCoRender();
   }
-  function busCloseBooking() {
-    const modal = document.getElementById('busBookingModal');
-    modal.classList.remove('open');
-    modal.innerHTML = '';
-    document.body.style.overflow = '';
+
+  function busCoStep3() {
+    const c = busCo, b = c.b;
+    return `
+      <div class="bk-card bus-co-ticket"><div class="ab-ticket">
+        <div class="ab-ticket-ok">✓</div>
+        <h3>Booking confirmed</h3>
+        <p class="ab-muted">Booking ID <strong>${c.ref}</strong> · ticket sent to ${busEsc(c.email)} and +91 ${busEsc(c.phone)}</p>
+        <div class="ab-ticket-route">
+          <div><strong>${formatTime12hr(c.bp.time)}</strong><span>${busEsc(c.bp.name)}</span><small>${busEsc(b.fromName)} · ${busShortDate(busPointDate(c.bp))}</small></div>
+          <div class="ab-ticket-mid">${busPrettyDate(c.date)}<i></i>${busDurText((c.dp.abs || 0) - (c.bp.abs || 0))}</div>
+          <div><strong>${formatTime12hr(c.dp.time)}</strong><span>${busEsc(c.dp.name)}</span><small>${busEsc(b.toName)} · ${busShortDate(busPointDate(c.dp))}</small></div>
+        </div>
+        <div class="ab-ticket-bus"><strong>${busEsc(b.operatorName)}</strong> · ${busEsc(b.busType)}${b.plate ? ` · <span class="ab-plate">${b.plate}</span>` : ''}</div>
+        <table class="ab-ticket-pax"><thead><tr><th>Passenger</th><th>Age</th><th>Seat</th></tr></thead>
+          <tbody>${c.pax.map((p, i) => `<tr><td>${busEsc(p.name.trim())} (${p.gender})</td><td>${busEsc(p.age)}</td><td>${c.seats[i].id}</td></tr>`).join('')}</tbody></table>
+        ${c.assure === 'yes' ? '<p class="bus-co-note">✓ TravelMate Assured — free cancellation, 1.5x refund if the operator cancels.</p>' : ''}
+        ${c.protect ? '<p class="bus-co-note">✓ Travel Protection Plan added for every passenger.</p>' : ''}
+        <div class="ab-ticket-total"><span>Total paid</span><strong>${busRupee(c.paidTotal)}</strong></div>
+        <p class="ab-muted ab-center">Demo booking — no payment was collected.</p>
+        <button type="button" class="ab-proceed" onclick="busCoClose()">Done</button>
+      </div></div>`;
   }
+
+  function busCoClose() {
+    document.getElementById('busCheckout').classList.remove('open');
+    document.body.classList.remove('bk-lock');
+    busCo = null;
+  }
+  function busCoBack() {
+    if (!busCo) return;
+    if (busCo.step === 2) { busCo.step = 1; busCoRender(); } else busCoClose();
+  }
+  // Called after a login completes: fill in contact details the person hasn't typed yet.
+  function busCoOnLogin(session) {
+    if (!busCo || busCo.step !== 1 || !session) return;
+    if (!busCo.phone && session.phone) busCo.phone = String(session.phone).replace(/\D/g, '').slice(-10);
+    if (!busCo.email && session.email) busCo.email = session.email;
+    busCoRender(true);
+  }
+  // Clear a field's error as soon as the person edits it.
+  document.addEventListener('input', (e) => {
+    if (!busCo || !e.target.closest('#busCheckout .bk-main')) return;
+    e.target.classList.remove('err');
+    const msg = e.target.closest('.bus-co-field') && e.target.closest('.bus-co-field').querySelector('.bus-co-err');
+    if (msg) msg.remove();
+  });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && document.getElementById('busBookingModal').classList.contains('open')) busCloseBooking();
+    if (e.key !== 'Escape' || !busCo) return;
+    const login = document.getElementById('tmLoginModal');
+    if (login && login.classList.contains('open')) return;
+    busCoBack();
   });
 
   function initBusUI() {
@@ -5753,6 +6512,14 @@
       t.addEventListener('click', () => busToggleFilter(t.dataset.group, t.dataset.val)));
     document.querySelectorAll('#busQuickPills .ab-pill').forEach(p =>
       p.addEventListener('click', () => busToggleFilter('quick', p.dataset.val)));
+    document.getElementById('busPopular').addEventListener('click', (e) => {
+      const chips = document.getElementById('busPopChips');
+      const t = e.target.closest('.ab-pop-tab');
+      if (t) { busPopTab = t.dataset.pop; busRenderPopular(); chips.scrollLeft = 0; return; }
+      const c = e.target.closest('.ab-pop-chip');
+      if (c) { busToggleFilter(busPopTab, c.dataset.val); return; }
+      if (e.target.closest('.ab-pop-next')) chips.scrollBy({ left: 260, behavior: 'smooth' });
+    });
     busRenderRecent();
     busRenderSidebar();
   }
@@ -5798,115 +6565,11 @@
     }
   }
 
-  // Google Flights-style flight results (mock data, keyed by "FROM->TO" airport codes)
-  const flightRoutes = {
-    'BLR->HYD': [
-      { airline: 'IndiGo', slug: 'indigo', flightNumber: '6E-204', departureTime: '06:00', arrivalTime: '07:20', durationMinutes: 80, duration: '1h 20m', stops: 0, price: 3499, emissions: 'avg', bags: ['carry-on'], best: true },
-      { airline: 'Air India', slug: 'air-india', flightNumber: 'AI-503', departureTime: '08:15', arrivalTime: '09:35', durationMinutes: 80, duration: '1h 20m', stops: 0, price: 4199, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Akasa Air', slug: 'akasa', flightNumber: 'QP-1354', departureTime: '11:40', arrivalTime: '13:00', durationMinutes: 80, duration: '1h 20m', stops: 0, price: 3199, emissions: 'avg', bags: ['carry-on'], best: true },
-      { airline: 'SpiceJet', slug: 'spicejet', flightNumber: 'SG-157', departureTime: '14:20', arrivalTime: '15:45', durationMinutes: 85, duration: '1h 25m', stops: 0, price: 3899, emissions: 'high', bags: ['carry-on'], best: false },
-      { airline: 'Air India', slug: 'air-india', flightNumber: 'AI-2914', departureTime: '17:05', arrivalTime: '18:25', durationMinutes: 80, duration: '1h 20m', stops: 0, price: 3350, emissions: 'avg', bags: ['carry-on', 'checked-bag'], best: false },
-      { airline: 'IndiGo', slug: 'indigo', flightNumber: '6E-6362', departureTime: '19:50', arrivalTime: '21:10', durationMinutes: 80, duration: '1h 20m', stops: 0, price: 4599, emissions: 'avg', bags: ['carry-on'], best: false },
-      { airline: 'SpiceJet', slug: 'spicejet', flightNumber: 'SG-9876', departureTime: '05:30', arrivalTime: '09:45', durationMinutes: 255, duration: '4h 15m', stops: 1, stopCity: 'Chennai (MAA)', price: 2899, emissions: 'high', bags: ['carry-on'], best: false }
-    ],
-    'HYD->BLR': [
-      { airline: 'IndiGo', slug: 'indigo', flightNumber: '6E-6363', departureTime: '06:30', arrivalTime: '07:50', durationMinutes: 80, duration: '1h 20m', stops: 0, price: 3599, emissions: 'avg', bags: ['carry-on'], best: true },
-      { airline: 'Air India', slug: 'air-india', flightNumber: 'AI-504', departureTime: '09:00', arrivalTime: '10:20', durationMinutes: 80, duration: '1h 20m', stops: 0, price: 4099, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Akasa Air', slug: 'akasa', flightNumber: 'QP-1355', departureTime: '12:10', arrivalTime: '13:30', durationMinutes: 80, duration: '1h 20m', stops: 0, price: 3099, emissions: 'avg', bags: ['carry-on'], best: true },
-      { airline: 'SpiceJet', slug: 'spicejet', flightNumber: 'SG-158', departureTime: '15:00', arrivalTime: '16:25', durationMinutes: 85, duration: '1h 25m', stops: 0, price: 3799, emissions: 'high', bags: ['carry-on'], best: false },
-      { airline: 'Air India', slug: 'air-india', flightNumber: 'AI-2915', departureTime: '18:20', arrivalTime: '19:40', durationMinutes: 80, duration: '1h 20m', stops: 0, price: 3299, emissions: 'avg', bags: ['carry-on', 'checked-bag'], best: false },
-      { airline: 'IndiGo', slug: 'indigo', flightNumber: '6E-6109', departureTime: '20:45', arrivalTime: '22:05', durationMinutes: 80, duration: '1h 20m', stops: 0, price: 4499, emissions: 'avg', bags: ['carry-on'], best: false }
-    ],
-    'BLR->SHJ': [
-      { airline: 'Air India Express', slug: 'air-india-express', flightNumber: 'IX-193', departureTime: '09:10', arrivalTime: '11:50', durationMinutes: 250, duration: '4h 10m', stops: 0, price: 14499, emissions: 'avg', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Air Arabia', slug: 'air-arabia', flightNumber: 'G9-471', departureTime: '23:30', arrivalTime: '02:05 (+1)', durationMinutes: 245, duration: '4h 05m', stops: 0, price: 13299, emissions: 'high', bags: ['carry-on'], best: true }
-    ],
-    'SHJ->BLR': [
-      { airline: 'Air India Express', slug: 'air-india-express', flightNumber: 'IX-194', departureTime: '13:10', arrivalTime: '18:50', durationMinutes: 250, duration: '4h 10m', stops: 0, price: 14899, emissions: 'avg', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Air Arabia', slug: 'air-arabia', flightNumber: 'G9-472', departureTime: '01:20', arrivalTime: '07:05', durationMinutes: 255, duration: '4h 15m', stops: 0, price: 13599, emissions: 'high', bags: ['carry-on'], best: true }
-    ],
-    'BLR->DOH': [
-      { airline: 'Qatar Airways', slug: 'qatar', flightNumber: 'QR-514', departureTime: '14:20', arrivalTime: '16:10', durationMinutes: 260, duration: '4h 20m', stops: 0, price: 22499, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'IndiGo', slug: 'indigo', flightNumber: '6E-1421', departureTime: '02:10', arrivalTime: '03:55', durationMinutes: 255, duration: '4h 15m', stops: 0, price: 16999, emissions: 'avg', bags: ['carry-on'], best: true }
-    ],
-    'DOH->BLR': [
-      { airline: 'Qatar Airways', slug: 'qatar', flightNumber: 'QR-515', departureTime: '17:40', arrivalTime: '00:35 (+1)', durationMinutes: 265, duration: '4h 25m', stops: 0, price: 23199, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'IndiGo', slug: 'indigo', flightNumber: '6E-1422', departureTime: '05:15', arrivalTime: '12:05', durationMinutes: 260, duration: '4h 20m', stops: 0, price: 17399, emissions: 'avg', bags: ['carry-on'], best: true }
-    ],
-    'BLR->AUH': [
-      { airline: 'Etihad Airways', slug: 'etihad', flightNumber: 'EY-284', departureTime: '06:45', arrivalTime: '09:05', durationMinutes: 230, duration: '3h 50m', stops: 0, price: 19299, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Air India Express', slug: 'air-india-express', flightNumber: 'IX-451', departureTime: '20:15', arrivalTime: '22:40', durationMinutes: 235, duration: '3h 55m', stops: 0, price: 15799, emissions: 'avg', bags: ['carry-on'], best: true }
-    ],
-    'AUH->BLR': [
-      { airline: 'Etihad Airways', slug: 'etihad', flightNumber: 'EY-285', departureTime: '10:20', arrivalTime: '15:45', durationMinutes: 235, duration: '3h 55m', stops: 0, price: 19699, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Air India Express', slug: 'air-india-express', flightNumber: 'IX-452', departureTime: '22:50', arrivalTime: '04:10 (+1)', durationMinutes: 230, duration: '3h 50m', stops: 0, price: 16099, emissions: 'avg', bags: ['carry-on'], best: true }
-    ],
-    'HYD->SHJ': [
-      { airline: 'Air India Express', slug: 'air-india-express', flightNumber: 'IX-283', departureTime: '10:30', arrivalTime: '12:40', durationMinutes: 220, duration: '3h 40m', stops: 0, price: 13999, emissions: 'avg', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Air Arabia', slug: 'air-arabia', flightNumber: 'G9-561', departureTime: '02:40', arrivalTime: '07:55', durationMinutes: 225, duration: '3h 45m', stops: 0, price: 12799, emissions: 'high', bags: ['carry-on'], best: false }
-    ],
-    'SHJ->HYD': [
-      { airline: 'Air India Express', slug: 'air-india-express', flightNumber: 'IX-284', departureTime: '14:00', arrivalTime: '19:20', durationMinutes: 220, duration: '3h 40m', stops: 0, price: 14299, emissions: 'avg', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Air Arabia', slug: 'air-arabia', flightNumber: 'G9-562', departureTime: '09:15', arrivalTime: '14:35', durationMinutes: 220, duration: '3h 40m', stops: 0, price: 13099, emissions: 'high', bags: ['carry-on'], best: false }
-    ],
-    'HYD->DOH': [
-      { airline: 'Qatar Airways', slug: 'qatar', flightNumber: 'QR-528', departureTime: '15:45', arrivalTime: '17:05', durationMinutes: 230, duration: '3h 50m', stops: 0, price: 21299, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'IndiGo', slug: 'indigo', flightNumber: '6E-1489', departureTime: '03:20', arrivalTime: '04:35', durationMinutes: 225, duration: '3h 45m', stops: 0, price: 15999, emissions: 'avg', bags: ['carry-on'], best: true }
-    ],
-    'DOH->HYD': [
-      { airline: 'Qatar Airways', slug: 'qatar', flightNumber: 'QR-529', departureTime: '19:10', arrivalTime: '01:35 (+1)', durationMinutes: 235, duration: '3h 55m', stops: 0, price: 21899, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'IndiGo', slug: 'indigo', flightNumber: '6E-1490', departureTime: '06:50', arrivalTime: '13:15', durationMinutes: 235, duration: '3h 55m', stops: 0, price: 16399, emissions: 'avg', bags: ['carry-on'], best: true }
-    ],
-    'HYD->AUH': [
-      { airline: 'Etihad Airways', slug: 'etihad', flightNumber: 'EY-296', departureTime: '07:50', arrivalTime: '09:55', durationMinutes: 215, duration: '3h 35m', stops: 0, price: 18499, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Air India Express', slug: 'air-india-express', flightNumber: 'IX-462', departureTime: '21:30', arrivalTime: '23:40', durationMinutes: 220, duration: '3h 40m', stops: 0, price: 15199, emissions: 'avg', bags: ['carry-on'], best: false }
-    ],
-    'AUH->HYD': [
-      { airline: 'Etihad Airways', slug: 'etihad', flightNumber: 'EY-297', departureTime: '11:35', arrivalTime: '16:45', durationMinutes: 220, duration: '3h 40m', stops: 0, price: 18899, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Air India Express', slug: 'air-india-express', flightNumber: 'IX-463', departureTime: '00:15', arrivalTime: '05:10', durationMinutes: 215, duration: '3h 35m', stops: 0, price: 15499, emissions: 'avg', bags: ['carry-on'], best: false }
-    ],
-    'BLR->AMS': [
-      { airline: 'KLM', slug: 'klm', flightNumber: 'KL-872', departureTime: '03:35', arrivalTime: '08:40', durationMinutes: 575, duration: '9h 35m', stops: 0, price: 62000, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Emirates', slug: 'emirates', flightNumber: 'EK-2569', departureTime: '01:20', arrivalTime: '10:40', durationMinutes: 830, duration: '13h 50m', stops: 1, stopCity: 'Dubai (DXB)', price: 48500, emissions: 'high', bags: ['carry-on', 'checked-bag'], best: true,
-        departureDate: '2026-09-26',
-        carbonEmissions: { thisFlightKg: 560, typicalKg: 528, differencePercent: 6 },
-        segments: [
-          { airline: 'Emirates', flightNumber: 'EK-2569', aircraft: 'Airbus A380', travelClass: 'Economy', departureAirport: 'BLR', departureAirportName: 'Kempegowda International Airport Bengaluru', departureTime: '1:20 AM', arrivalAirport: 'DXB', arrivalAirportName: 'Dubai International Airport', arrivalTime: '3:10 AM', duration: '3h 20m', legroom: '81 cm', extensions: ['Wi-Fi for a fee', 'In-seat power & USB outlets', 'On-demand video', 'Carbon emissions estimate: 180 kg CO2e'], layoverAfter: { airport: 'DXB', airportName: 'Dubai International Airport', duration: '3h 20m', durationMinutes: 200, overnight: false } },
-          { airline: 'Emirates', flightNumber: 'EK-147', aircraft: 'Airbus A380', travelClass: 'Economy', departureAirport: 'DXB', departureAirportName: 'Dubai International Airport', departureTime: '6:30 AM', arrivalAirport: 'AMS', arrivalAirportName: 'Amsterdam Airport Schiphol', arrivalTime: '10:40 AM', duration: '7h 10m', legroom: '81 cm', extensions: ['Wi-Fi for a fee', 'In-seat power & USB outlets', 'On-demand video', 'Carbon emissions estimate: 380 kg CO2e'], layoverAfter: null }
-        ]
-      },
-      { airline: 'Qatar Airways', slug: 'qatar', flightNumber: 'QR-556', departureTime: '08:45', arrivalTime: '18:30', durationMinutes: 855, duration: '14h 15m', stops: 1, stopCity: 'Doha (DOH)', price: 51200, emissions: 'avg', bags: ['carry-on', 'checked-bag'], best: false,
-        departureDate: '2026-09-26',
-        carbonEmissions: { thisFlightKg: 545, typicalKg: 555, differencePercent: -2 },
-        segments: [
-          { airline: 'Qatar Airways', flightNumber: 'QR-556', aircraft: 'Airbus A350', travelClass: 'Economy', departureAirport: 'BLR', departureAirportName: 'Kempegowda International Airport Bengaluru', departureTime: '8:45 AM', arrivalAirport: 'DOH', arrivalAirportName: 'Hamad International Airport', arrivalTime: '10:15 AM', duration: '4h 0m', legroom: '79 cm', extensions: ['Wi-Fi for a fee', 'In-seat power & USB outlets', 'On-demand video', 'Carbon emissions estimate: 195 kg CO2e'], layoverAfter: { airport: 'DOH', airportName: 'Hamad International Airport', duration: '3h 45m', durationMinutes: 225, overnight: false } },
-          { airline: 'Qatar Airways', flightNumber: 'QR-275', aircraft: 'Airbus A350', travelClass: 'Economy', departureAirport: 'DOH', departureAirportName: 'Hamad International Airport', departureTime: '2:00 PM', arrivalAirport: 'AMS', arrivalAirportName: 'Amsterdam Airport Schiphol', arrivalTime: '6:30 PM', duration: '6h 30m', legroom: '79 cm', extensions: ['Wi-Fi for a fee', 'In-seat power & USB outlets', 'On-demand video', 'Carbon emissions estimate: 350 kg CO2e'], layoverAfter: null }
-        ]
-      }
-    ],
-    'AMS->BLR': [
-      { airline: 'KLM', slug: 'klm', flightNumber: 'KL-871', departureTime: '13:20', arrivalTime: '02:35 (+1)', durationMinutes: 525, duration: '8h 45m', stops: 0, price: 64500, emissions: 'low', bags: ['carry-on', 'checked-bag'], best: true },
-      { airline: 'Emirates', slug: 'emirates', flightNumber: 'EK-2570', departureTime: '09:10', arrivalTime: '04:00 (+1)', durationMinutes: 860, duration: '14h 20m', stops: 1, stopCity: 'Dubai (DXB)', price: 47900, emissions: 'high', bags: ['carry-on', 'checked-bag'], best: true,
-        departureDate: '2026-09-26',
-        carbonEmissions: { thisFlightKg: 565, typicalKg: 530, differencePercent: 7 },
-        segments: [
-          { airline: 'Emirates', flightNumber: 'EK-148', aircraft: 'Airbus A380', travelClass: 'Economy', departureAirport: 'AMS', departureAirportName: 'Amsterdam Airport Schiphol', departureTime: '9:10 AM', arrivalAirport: 'DXB', arrivalAirportName: 'Dubai International Airport', arrivalTime: '7:00 PM', duration: '6h 50m', legroom: '81 cm', extensions: ['Wi-Fi for a fee', 'In-seat power & USB outlets', 'On-demand video', 'Carbon emissions estimate: 385 kg CO2e'], layoverAfter: { airport: 'DXB', airportName: 'Dubai International Airport', duration: '3h 55m', durationMinutes: 235, overnight: false } },
-          { airline: 'Emirates', flightNumber: 'EK-568', aircraft: 'Boeing 777', travelClass: 'Economy', departureAirport: 'DXB', departureAirportName: 'Dubai International Airport', departureTime: '10:55 PM', arrivalAirport: 'BLR', arrivalAirportName: 'Kempegowda International Airport Bengaluru', arrivalTime: '4:00 AM (+1)', duration: '3h 35m', legroom: '79 cm', extensions: ['Wi-Fi for a fee', 'In-seat power & USB outlets', 'Carbon emissions estimate: 180 kg CO2e'], layoverAfter: null }
-        ]
-      },
-      { airline: 'Qatar Airways', slug: 'qatar', flightNumber: 'QR-557', departureTime: '16:30', arrivalTime: '10:55 (+1)', durationMinutes: 835, duration: '13h 55m', stops: 1, stopCity: 'Doha (DOH)', price: 52800, emissions: 'avg', bags: ['carry-on', 'checked-bag'], best: false,
-        departureDate: '2026-09-26',
-        carbonEmissions: { thisFlightKg: 540, typicalKg: 555, differencePercent: -3 },
-        segments: [
-          { airline: 'Qatar Airways', flightNumber: 'QR-557', aircraft: 'Airbus A350', travelClass: 'Economy', departureAirport: 'AMS', departureAirportName: 'Amsterdam Airport Schiphol', departureTime: '4:30 PM', arrivalAirport: 'DOH', arrivalAirportName: 'Hamad International Airport', arrivalTime: '12:50 AM (+1)', duration: '6h 20m', legroom: '79 cm', extensions: ['Wi-Fi for a fee', 'In-seat power & USB outlets', 'On-demand video', 'Carbon emissions estimate: 345 kg CO2e'], layoverAfter: { airport: 'DOH', airportName: 'Hamad International Airport', duration: '3h 35m', durationMinutes: 215, overnight: true } },
-          { airline: 'Qatar Airways', flightNumber: 'QR-558', aircraft: 'Airbus A350', travelClass: 'Economy', departureAirport: 'DOH', departureAirportName: 'Hamad International Airport', departureTime: '4:25 AM (+1)', arrivalAirport: 'BLR', arrivalAirportName: 'Kempegowda International Airport Bengaluru', arrivalTime: '10:55 AM (+1)', duration: '4h 0m', legroom: '79 cm', extensions: ['Wi-Fi for a fee', 'In-seat power & USB outlets', 'Carbon emissions estimate: 195 kg CO2e'], layoverAfter: null }
-        ]
-      }
-    ]
-  };
-
   let flightSortKey = 'best';
   let flightSearchResults = [];
+  // The backend's meta for the current results: passengers, trip type,
+  // retrievedAt, Google's price insights and the Google Flights link.
+  let flightSearchMeta = {};
   let flightFromLabel = '';
   let flightToLabel = '';
 
@@ -5937,6 +6600,7 @@
     return days === 1 ? 'Next day' : `+${days} days`;
   }
 
+  // Local clock time: 5 AM–12 PM morning, 12–5 PM afternoon, otherwise evening & night.
   function timeBucket(hhmm) {
     const h = parseInt(hhmm.split(':')[0], 10);
     if (h >= 5 && h < 12) return 'morning';
@@ -5969,10 +6633,8 @@
       const stopTag = f.stops === 0 ? 'nonstop' : (f.stops === 1 ? '1stop' : '2plus');
       if (!filters.stopVals.includes(stopTag)) return false;
     }
-    // Airline checkboxes don't exclude other carriers — they bring the selected
-    // airline(s) to the top of the results instead (see withAirlinePriority()),
-    // the same way a real flight search lets you prefer an airline without
-    // hiding every other option.
+    // Airline checkboxes keep only itineraries flown (on any leg) by a ticked airline.
+    if (filters.airlineVals.length && !flightHasAirline(f, filters.airlineVals)) return false;
 
     if (filters.depVals.length) {
       const bucket = 'dep-' + timeBucket(f.departureTime);
@@ -5994,16 +6656,30 @@
     return true;
   }
 
-  // Puts flights from the checked airline(s) ahead of everyone else, without
-  // removing anyone from the results — the tiebreaker only kicks in when an
-  // airline checkbox is checked, so unrelated sort orders are unaffected.
-  function withAirlinePriority(comparator, filters) {
-    const isPreferred = (f) => filters.airlineVals.length && f.slug && filters.airlineVals.includes(f.slug);
-    return (a, b) => {
-      const pa = isPreferred(a) ? 0 : 1;
-      const pb = isPreferred(b) ? 0 : 1;
-      return pa !== pb ? pa - pb : comparator(a, b);
-    };
+  // Airline checkbox value -> the airline names Google Flights uses for it.
+  // Matched by exact name, so "Air India" never matches "Air India Express".
+  const FLIGHT_AIRLINE_FILTER_NAMES = {
+    'indigo': ['indigo'],
+    'air-india': ['air india', 'vistara'],
+    'air-india-express': ['air india express'],
+    'akasa': ['akasa air'],
+    'spicejet': ['spicejet'],
+    'emirates': ['emirates'],
+    'qatar': ['qatar airways'],
+    'etihad': ['etihad', 'etihad airways'],
+    'air-arabia': ['air arabia'],
+    'klm': ['klm']
+  };
+
+  function flightHasAirline(f, airlineVals) {
+    const names = (Array.isArray(f.airlines) && f.airlines.length ? f.airlines : String(f.airline || '').split(','))
+      .map(n => n.trim().toLowerCase());
+    return airlineVals.some(v => (FLIGHT_AIRLINE_FILTER_NAMES[v] || []).some(n => names.includes(n)));
+  }
+
+  // Cheapest first; equal fares go to the shorter journey.
+  function compareFlightsByPrice(a, b) {
+    return a.price !== b.price ? a.price - b.price : (a.durationMinutes || 0) - (b.durationMinutes || 0);
   }
 
   function emissionsTagHtml(f) {
@@ -6078,9 +6754,10 @@
 
     let html = `
       <div class="detail-segment-row">
+        <div class="detail-seg-logo">${airlineLogoHtml(seg.airline, seg.flightNumber, seg.airlineLogo || seg.airline_logo, 36)}</div>
         <div class="detail-segment-dots"><div class="detail-dot"></div><div class="detail-dot-line"></div><div class="detail-dot"></div></div>
         <div class="detail-segment-main">
-          <div class="detail-point-time">${formatTime12hr(seg.departureTime)}</div>
+          <div class="detail-point-time">${formatTime12hr(seg.departureTime)}${seg.departureTime && nextDayLabel(seg.departureTime) ? ` <span class="warn">${nextDayLabel(seg.departureTime)}</span>` : ''}</div>
           <div class="detail-point-airport">${seg.departureAirportName || ''}${seg.departureAirport ? ` (${seg.departureAirport})` : ''}</div>
           <div class="detail-travel-meta">Travel time: ${seg.duration || '—'}${overnightWarn}</div>
           <div class="detail-flight-info">${flightInfo}</div>
@@ -6135,6 +6812,353 @@
 
   let currentDisplayedFlights = [];
 
+  /* ---------- Book Now → the airline's own website ----------
+     Matched on the flight number's IATA code first (6E-1301 → IndiGo), then
+     on the airline name. Links go to each airline's official booking page;
+     an airline not listed here falls back to Google Flights for the route. */
+  const AIRLINE_SITES = {
+    '6E': ['IndiGo', 'https://www.goindigo.in/'],
+    'AI': ['Air India', 'https://www.airindia.com/'],
+    'IX': ['Air India Express', 'https://www.airindiaexpress.com/'],
+    'I5': ['Air India Express', 'https://www.airindiaexpress.com/'],
+    'UK': ['Air India', 'https://www.airindia.com/'],
+    'SG': ['SpiceJet', 'https://www.spicejet.com/'],
+    'QP': ['Akasa Air', 'https://www.akasaair.com/'],
+    'QR': ['Qatar Airways', 'https://www.qatarairways.com/en-in/homepage.html'],
+    'EK': ['Emirates', 'https://www.emirates.com/in/english/'],
+    'EY': ['Etihad Airways', 'https://www.etihad.com/en-in/'],
+    'G9': ['Air Arabia', 'https://www.airarabia.com/'],
+    'FZ': ['flydubai', 'https://www.flydubai.com/'],
+    'WY': ['Oman Air', 'https://www.omanair.com/'],
+    'GF': ['Gulf Air', 'https://www.gulfair.com/'],
+    'SV': ['Saudia', 'https://www.saudia.com/'],
+    'KU': ['Kuwait Airways', 'https://www.kuwaitairways.com/'],
+    'J9': ['Jazeera Airways', 'https://www.jazeeraairways.com/'],
+    'KL': ['KLM', 'https://www.klm.co.in/'],
+    'AF': ['Air France', 'https://wwws.airfrance.in/'],
+    'LH': ['Lufthansa', 'https://www.lufthansa.com/in/en/homepage'],
+    'LX': ['SWISS', 'https://www.swiss.com/'],
+    'OS': ['Austrian Airlines', 'https://www.austrian.com/'],
+    'BA': ['British Airways', 'https://www.britishairways.com/'],
+    'VS': ['Virgin Atlantic', 'https://www.virginatlantic.com/'],
+    'TK': ['Turkish Airlines', 'https://www.turkishairlines.com/'],
+    'ET': ['Ethiopian Airlines', 'https://www.ethiopianairlines.com/'],
+    'SQ': ['Singapore Airlines', 'https://www.singaporeair.com/en_UK/in/home'],
+    'TR': ['Scoot', 'https://www.flyscoot.com/'],
+    'TG': ['Thai Airways', 'https://www.thaiairways.com/'],
+    'MH': ['Malaysia Airlines', 'https://www.malaysiaairlines.com/'],
+    'AK': ['AirAsia', 'https://www.airasia.com/'],
+    'FD': ['Thai AirAsia', 'https://www.airasia.com/'],
+    'VN': ['Vietnam Airlines', 'https://www.vietnamairlines.com/'],
+    'VJ': ['VietJet Air', 'https://www.vietjetair.com/'],
+    'CX': ['Cathay Pacific', 'https://www.cathaypacific.com/'],
+    'UL': ['SriLankan Airlines', 'https://www.srilankan.com/'],
+    'BG': ['Biman Bangladesh', 'https://www.biman-airlines.com/'],
+    'RA': ['Nepal Airlines', 'https://www.nepalairlines.com.np/'],
+    'KE': ['Korean Air', 'https://www.koreanair.com/'],
+    'NH': ['ANA', 'https://www.ana.co.jp/'],
+    'JL': ['Japan Airlines', 'https://www.jal.co.jp/'],
+    'QF': ['Qantas', 'https://www.qantas.com/'],
+    'AC': ['Air Canada', 'https://www.aircanada.com/'],
+    'UA': ['United Airlines', 'https://www.united.com/'],
+    'AA': ['American Airlines', 'https://www.aa.com/'],
+    'DL': ['Delta', 'https://www.delta.com/']
+  };
+  const AIRLINE_NAME_CODES = Object.fromEntries(
+    Object.entries(AIRLINE_SITES).map(([code, [name]]) => [name.toLowerCase(), code])
+  );
+  Object.assign(AIRLINE_NAME_CODES, { 'etihad': 'EY', 'swiss': 'LX', 'vistara': 'UK', 'airasia india': 'IX', 'saudi arabian airlines': 'SV', 'thai': 'TG', 'singapore': 'SQ' });
+
+  // Low-cost carriers sell only their own flights. When one shares a trip
+  // with a full-service airline (IndiGo BLR–DOH + Qatar Airways DOH–AMS),
+  // the full-service airline issues the ticket — Google Flights' "Book with
+  // Qatar Airways" — so that is the site to book on.
+  const LOW_COST_CARRIERS = new Set(['6E', 'SG', 'QP', 'IX', 'I5', 'G9', 'FZ', 'J9', 'AK', 'FD', 'TR', 'VJ']);
+
+  function airlineCodeFromName(name) {
+    const n = String(name || '').trim().toLowerCase();
+    if (!n) return null;
+    return AIRLINE_NAME_CODES[n] || Object.keys(AIRLINE_NAME_CODES).filter(k => n.includes(k)).map(k => AIRLINE_NAME_CODES[k])[0] || null;
+  }
+  function flightCodeFromNumber(fn) {
+    const m = /^([A-Z0-9]{2})[\s-]?\d/i.exec(String(fn || '').trim());
+    return m ? m[1].toUpperCase() : null;
+  }
+  function legMinutes(seg) {
+    if (typeof seg.durationMinutes === 'number') return seg.durationMinutes;
+    const t = String(seg.duration || '');
+    const h = /(\d+)\s*h/i.exec(t), m = /(\d+)\s*m/i.exec(t);
+    return (h ? +h[1] * 60 : 0) + (m ? +m[1] : 0);
+  }
+
+  // Every airline on the trip, in order, with how long it flies.
+  function flightCarriers(f) {
+    if (Array.isArray(f.segments) && f.segments.length) {
+      return f.segments.map(s => ({
+        code: flightCodeFromNumber(s.flightNumber) || airlineCodeFromName(s.airline),
+        name: s.airline || '', minutes: legMinutes(s)
+      }));
+    }
+    return String(f.airline || '').split(/,|\+|\//).map(x => x.trim()).filter(Boolean).map((name, i) => ({
+      code: (i === 0 && flightCodeFromNumber(f.flightNumber)) || airlineCodeFromName(name),
+      name, minutes: 0
+    }));
+  }
+
+  // The airline that sells the whole trip.
+  function sellingCarrier(f) {
+    const legs = flightCarriers(f);
+    const byCode = new Map();
+    legs.forEach((l, i) => {
+      const key = l.code || l.name.toLowerCase();
+      if (!key) return;
+      const cur = byCode.get(key) || { ...l, minutes: 0, order: i };
+      cur.minutes += l.minutes;
+      byCode.set(key, cur);
+    });
+    const all = [...byCode.values()];
+    if (all.length <= 1) return all[0] || null;
+    const full = all.filter(c => !(c.code && LOW_COST_CARRIERS.has(c.code)));
+    const pool = full.length ? full : all;
+    // Most flying time wins; on a tie (no times known), the later airline —
+    // the long-haul partner is usually listed second.
+    return pool.slice().sort((x, y) => (y.minutes - x.minutes) || (y.order - x.order))[0];
+  }
+
+  function airlineBookingSite(f) {
+    const c = sellingCarrier(f);
+    const code = c && c.code && AIRLINE_SITES[c.code] ? c.code : null;
+    if (code) return { name: AIRLINE_SITES[code][0], url: AIRLINE_SITES[code][1], code };
+    // Not in the list: the airline's own site via a straight web search.
+    const name = (c && c.name) || String(f.airline || '').split(/,|\+|\//)[0].trim();
+    return { name: name || 'the airline', url: 'https://duckduckgo.com/?q=' + encodeURIComponent('\\' + name + ' official website book flights'), code: null };
+  }
+
+  /* ---------- Airline logos ----------
+     Live results carry Google's own logo (airlineLogo / airline_logo).
+     Otherwise the logo comes from the IATA code — the flight number's
+     prefix (6E 1301 → 6E) or the airline's name — at Google's public logo
+     address. A logo that fails to load turns into the airline's initials. */
+  function airlineIataCode(name, flightNumber) {
+    const m = /^([A-Z0-9]{2})[\s-]?\d/i.exec(String(flightNumber || '').trim());
+    if (m) return m[1].toUpperCase();
+    const n = String(name || '').trim().toLowerCase();
+    if (!n) return null;
+    return AIRLINE_NAME_CODES[n] || Object.keys(AIRLINE_NAME_CODES).filter(k => n.includes(k)).map(k => AIRLINE_NAME_CODES[k])[0] || null;
+  }
+  function airlineInitials(name) {
+    const words = String(name || '?').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/);
+    return ((words[0] || '?')[0] + (words[1] ? words[1][0] : (words[0] || '')[1] || '')).toUpperCase();
+  }
+  function airlineLogoHtml(name, flightNumber, given, size = 28) {
+    const code = airlineIataCode(name, flightNumber);
+    const src = given || (code ? `https://www.gstatic.com/flights/airline_logos/70px/${code}.png` : '');
+    const initials = escapeHtml(airlineInitials(name));
+    const box = `width:${size}px;height:${size}px`;
+    if (!src) return `<span class="al-logo al-initials" style="${box}" title="${escapeHtml(name || '')}">${initials}</span>`;
+    return `<img class="al-logo" style="${box}" src="${escapeHtml(src)}" alt="${escapeHtml(name || 'Airline')} logo" title="${escapeHtml(name || '')}" loading="lazy" referrerpolicy="no-referrer"
+      onerror="this.outerHTML='&lt;span class=&quot;al-logo al-initials&quot; style=&quot;${box}&quot;&gt;${initials}&lt;/span&gt;'">`;
+  }
+  // One logo per carrier on the trip, up to two (IndiGo + Qatar Airways).
+  function flightCardLogos(f) {
+    const seen = new Set(), out = [];
+    const add = (name, fn, logo) => {
+      const key = airlineIataCode(name, fn) || String(name || '').toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key); out.push(airlineLogoHtml(name, fn, logo));
+    };
+    if (Array.isArray(f.segments) && f.segments.length) {
+      f.segments.forEach(s => add(s.airline, s.flightNumber, s.airlineLogo || s.airline_logo));
+    } else {
+      String(f.airline || '').split(/,|\+|\//).map(x => x.trim()).filter(Boolean)
+        .forEach((name, i) => add(name, i === 0 ? f.flightNumber : '', i === 0 ? (f.airlineLogo || f.airline_logo) : ''));
+    }
+    return out.slice(0, 2).join('');
+  }
+
+  /* ---------- Book Now: straight to the airline, search filled in ----------
+     Like Google Flights' "Book with Qatar Airways": live results carry a
+     SerpApi booking token. The backend's /api/flights/booking-options turns
+     it into Google's booking options, and the airline's own option is a
+     redirect (POST to google.com/travel/clk) that lands on the airline's
+     site with the flight, date and passengers already chosen.
+     Without a token, the backend finds the same flight again by its flight
+     numbers and gets the token itself — so this works for every airline.
+     Only if that fails (backend down, flight sold out, or a round trip whose
+     return isn't picked) does Book Now open the airline's site directly,
+     with the search filled in where the airline accepts that in a link. */
+  function flightSearchForm() {
+    const v = (id) => (document.getElementById(id) || {}).value || '';
+    return {
+      from: v('flightFrom'), to: v('flightTo'), date: v('flightDepartureDate'), returnDate: v('flightReturnDate'),
+      roundTrip: (document.querySelector('input[name="tripType"]:checked') || {}).value === 'roundtrip',
+      cabin: (v('flightCabinClass') || 'economy').toLowerCase(),
+      adults: adultCount || 1, children: childCount || 0, infants: infantCount || 0
+    };
+  }
+
+  // Airlines whose public search accepts the trip in the link itself.
+  function airlinePrefillUrl(f) {
+    const code = airlineBookingSite(f).code;
+    const s = flightSearchForm();
+    if (!s.from || !s.to || !s.date) return null;
+    if (code === 'QR') {
+      const cls = { business: 'B', first: 'F' }[s.cabin] || 'E';
+      return 'https://www.qatarairways.com/app/booking/flight-selection?' + new URLSearchParams({
+        widget: 'QR', searchType: 'F', addTaxToFare: 'Y', minPurTime: '0', selLang: 'en',
+        tripType: s.roundTrip && s.returnDate ? 'R' : 'O', fromStation: s.from, toStation: s.to,
+        departing: s.date, ...(s.roundTrip && s.returnDate ? { returning: s.returnDate } : {}),
+        bookingClass: cls, adults: s.adults, children: s.children, infants: s.infants,
+        ofw: '0', teenager: '0', flexibleDate: 'off', allowRedemption: 'N', isBooking: 'true'
+      });
+    }
+    if (code === 'SG') {
+      return 'https://www.spicejet.com/search?' + new URLSearchParams({
+        from: s.from, to: s.to, tripType: s.roundTrip && s.returnDate ? '2' : '1', departure: s.date,
+        ...(s.roundTrip && s.returnDate ? { return: s.returnDate } : {}),
+        adult: s.adults, child: s.children, srCitizen: '0', infant: s.infants, currency: 'INR'
+      });
+    }
+    return null;
+  }
+
+  // Google's booking redirect is a form POST; send it to the tab opened on click.
+  function flightPostRedirect(url, postData, target) {
+    const form = document.createElement('form');
+    form.method = 'POST'; form.action = url; form.target = target; form.style.display = 'none';
+    new URLSearchParams(postData).forEach((value, key) => {
+      const input = document.createElement('input');
+      input.type = 'hidden'; input.name = key; input.value = value;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+  }
+
+  // The option to use: the operating airline's own, else any airline, else the first seller.
+  function pickBookingOption(options, f) {
+    const carriers = [f.airline, ...((f.segments || []).map(s => s.airline))]
+      .join(',').split(/,|\+|\//).map(x => x.trim().toLowerCase()).filter(Boolean);
+    const isAirline = (o) => o.isAirline || carriers.some(c => String(o.bookWith || '').toLowerCase().includes(c));
+    const seller = airlineBookingSite(f).name.toLowerCase();
+    return options.find(o => o.url && String(o.bookWith || '').toLowerCase().includes(seller))
+      || options.find(o => o.url && isAirline(o)) || options.find(o => o.url);
+  }
+
+  // Book Now's booking options include the airline's own offer (Google's
+  // "Book with Qatar Airways  ₹29,134"). From then on the card shows that
+  // price — the one the airline charges — and says whose price it is.
+  // Agents (MakeMyTrip, Goibibo…) may list it for less; that isn't shown as
+  // the card's price because it isn't the airline's fare.
+  function flightApplyAirlinePrice(f, option, btn) {
+    if (!option || typeof option.price !== 'number' || option.price <= 0 || !option.bookWith) return;
+    f.price = option.price;
+    f.priceSeller = option.bookWith;
+    const card = btn && btn.closest('.ab-card');
+    if (!card) return;
+    const amount = card.querySelector('.ab-from strong');
+    const note = card.querySelector('.ab-price-note');
+    if (amount) amount.textContent = formatFare(f);
+    if (note) note.textContent = flightPriceNoteFor(f);
+  }
+
+  // "Qatar Airways price · 1 adult, one way" once the airline's own fare is known.
+  function flightPriceNoteFor(f) {
+    const base = flightPriceNote(flightSearchMeta);
+    return f.priceSeller ? `${f.priceSeller} price · ${base}` : base;
+  }
+
+  // The tab Book Now opens while TravelMate fetches the airline's booking
+  // link (that takes a live SerpApi lookup, often 10–30 seconds). It says
+  // what's happening, shows it's still working, and offers the airline's
+  // site straight away so nobody is left on a blank page.
+  function flightBookingTabHtml(airline, fallbackUrl) {
+    const name = escapeHtml(airline);
+    const href = /^https:\/\//.test(fallbackUrl || '') ? escapeAttr(fallbackUrl) : '';
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Opening ${name} · TravelMate</title>
+<style>
+  body { margin: 0; font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; color: #1f2d33; background: #eef2f4; }
+  header { background: #fff; border-bottom: 1px solid #ddd; padding: 16px 6%; font-size: 1.4rem; font-weight: 700; color: #1a5f7a; }
+  header span { color: #e74c3c; }
+  main { max-width: 520px; margin: 56px auto; padding: 32px 24px; background: #fff; border: 1px solid #dde3e6; border-radius: 8px; text-align: center; }
+  .spin { width: 36px; height: 36px; margin: 0 auto 18px; border: 4px solid #dfe6e9; border-top-color: #1a5f7a; border-radius: 50%; animation: s .8s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  h1 { font-size: 1.2rem; margin: 0 0 8px; }
+  p { margin: 0 0 6px; color: #4a5a61; font-size: .92rem; }
+  a { display: inline-block; margin-top: 18px; color: #1a5f7a; font-weight: 600; }
+</style></head><body>
+<header>Travel<span>Mate</span></header>
+<main>
+  <div class="spin" aria-hidden="true"></div>
+  <h1>Opening ${name}'s booking page…</h1>
+  <p>Getting the live booking link for your flight. This can take up to 30 seconds.</p>
+  <p>${name} will open on its search results for your route and date.</p>
+  ${href ? `<a href="${href}">Don't want to wait? Go to ${name}'s website</a>` : ''}
+</main></body></html>`;
+  }
+
+  async function flightBookNow(index, btn) {
+    const f = currentDisplayedFlights[index];
+    if (!f) return;
+    const site = airlineBookingSite(f);
+    const fallback = airlinePrefillUrl(f) || site.url;
+    const token = f.bookingToken || f.booking_token;
+    // Without a token the backend finds the flight again by its flight
+    // numbers (one-way only: a round trip's return choice isn't known here).
+    const legs = (Array.isArray(f.segments) && f.segments.length ? f.segments.map(x => x.flightNumber) : [f.flightNumber])
+      .map(n => String(n || '').replace(/[\s-]/g, '').toUpperCase()).filter(n => /^[A-Z0-9]{2}\d+$/.test(n));
+    const sNow = flightSearchForm();
+    if (!token && (!legs.length || (sNow.roundTrip && sNow.returnDate))) { window.open(fallback, '_blank', 'noopener'); return; }
+
+    // Open the tab now, inside the click, so pop-up blockers allow it.
+    const target = 'tmBook' + Date.now();
+    const w = window.open('', target);
+    try {
+      if (w) { w.document.open(); w.document.write(flightBookingTabHtml(site.name, fallback)); w.document.close(); }
+    } catch (e) {}
+    const label = btn.textContent;
+    btn.classList.add('is-busy'); btn.disabled = true; btn.textContent = 'Opening…';
+
+    try {
+      const s = flightSearchForm();
+      const q = new URLSearchParams({
+        ...(token ? { token } : { flights: legs.join(','), departureTime: f.departureTime || '' }),
+        origin: s.from, destination: s.to, date: s.date,
+        ...(s.roundTrip && s.returnDate ? { returnDate: s.returnDate } : {}),
+        cabinClass: s.cabin.toUpperCase(), adults: s.adults, children: s.children, infants: s.infants,
+        // Lets the backend tell the airline's own offer from an agent's
+        airlines: (Array.isArray(f.airlines) && f.airlines.length ? f.airlines : String(f.airline || '').split(',')).map(a => a.trim()).filter(Boolean).join(',')
+      });
+      // Longer than the backend's own 20 s SerpApi timeout (twice that when it
+      // must find the flight first), so a slow answer isn't thrown away.
+      const res = await fetchWithTimeout(`http://localhost:3000/api/flights/booking-options?${q}`, token ? 30000 : 50000, 'booking');
+      const body = await res.json().catch(() => null);
+      const pick = body && Array.isArray(body.options) ? pickBookingOption(body.options, f) : null;
+      if (res.ok && body) flightApplyAirlinePrice(f, pick && pick.isAirline ? pick : body.airlineOption, btn);
+      if (!res.ok || !pick) throw new Error('No booking option');
+      if (pick.postData) flightPostRedirect(pick.url, pick.postData, w ? target : '_blank');
+      else if (w && !w.closed) w.location.href = pick.url;
+      else window.open(pick.url, '_blank', 'noopener');
+    } catch (err) {
+      // Booking link unavailable: the airline's site directly.
+      if (w && !w.closed) w.location.href = fallback;
+      else window.open(fallback, '_blank', 'noopener');
+    } finally {
+      btn.classList.remove('is-busy'); btn.disabled = false; btn.textContent = label;
+    }
+  }
+
+
+  // What a card's price covers. Google Flights' price is the total for every
+  // passenger searched, and for a round trip it covers both directions.
+  function flightPriceNote(meta = {}) {
+    const travellers = (meta.adults || 1) + (meta.children || 0) + (meta.infants || 0);
+    const trip = meta.tripType === 'round_trip' ? 'round trip' : 'one way';
+    return travellers > 1 ? `total for ${travellers} travellers, ${trip}` : `1 adult, ${trip}`;
+  }
+
   function renderFlightCard(f, index) {
     // Tags row falls back to cabin class when live-API flights carry no
     // emissions/baggage data (Amadeus Self-Service doesn't reliably include either).
@@ -6158,12 +7182,12 @@
           </div>
           <div class="ab-price">
             <div class="ab-from">From <strong>${formatFare(f)}</strong></div>
-            <div class="ab-price-note">per traveler, one way</div>
+            <div class="ab-price-note">${escapeHtml(flightPriceNoteFor(f))}</div>
           </div>
         </div>
         <div class="ab-card-mid">
           <div class="ab-op">
-            <div class="ab-op-name">${f.airline}</div>
+            <div class="ab-op-name"><span class="fl-logos">${flightCardLogos(f)}</span>${f.airline}</div>
             <div class="ab-op-type">${f.flightNumber}</div>
             <div class="ab-op-origin">${f.stops === 0 ? 'Nonstop' : `${f.stops} stop${f.stops > 1 ? 's' : ''} · ${f.stopCity}`}</div>
           </div>
@@ -6173,7 +7197,8 @@
             ${timeBlock(f.arrivalTime, flightToLabel, true)}
           </div>
           <div class="ab-cta">
-            <button type="button" class="ab-select-btn" onclick="toggleFlightDetail(${index})">Select</button>
+            <button type="button" class="ab-select-btn ab-book-flight" onclick="flightBookNow(${index}, this)" title="Book on ${escapeHtml(airlineBookingSite(f).name)}">Book Now</button>
+            <button type="button" class="flight-details-link" onclick="toggleFlightDetail(${index})">Flight details ▾</button>
           </div>
         </div>
         <div class="flight-detail-panel hidden" id="flightDetail-${index}"></div>
@@ -6181,22 +7206,44 @@
     `;
   }
 
-  function priceInsightHtml(flights, isLive, { cached = false } = {}) {
+  // "Updated 10:42 AM" for an ISO timestamp, or '' when there is none.
+  function flightUpdatedLabel(iso) {
+    const d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return '';
+    return `Updated ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+  }
+
+  // The summary above the flight list. Only Google's own price_insights (passed
+  // through by the backend) can call prices low / typical / high — the page
+  // doesn't guess that from the handful of results it has.
+  function priceInsightHtml(flights, isLive, meta = {}) {
     if (!flights.length) return '';
+    const fmt = n => `₹${Math.round(n).toLocaleString('en-IN')}`;
     const prices = flights.map(f => f.price);
     const min = Math.min(...prices);
     const max = Math.max(...prices);
-    const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
-    let verdict = 'typical';
-    if (min < avg * 0.85) verdict = 'currently low';
-    else if (min > avg * 1.1) verdict = 'currently high';
+    const insights = meta.priceInsights || null;
+    const range = insights && insights.typicalPriceRange;
+
+    let text = `Fares on this list run from <strong>${fmt(min)}</strong> to <strong>${fmt(max)}</strong>`;
+    if (insights && insights.priceLevel) {
+      text = `Google Flights rates prices for this search as <strong>${insights.priceLevel}</strong>` +
+        (range ? ` — usually <strong>${fmt(range[0])}</strong> to <strong>${fmt(range[1])}</strong>` : '') +
+        `. Cheapest here: <strong>${fmt(min)}</strong>`;
+    }
+    const travellers = (meta.adults || 1) + (meta.children || 0) + (meta.infants || 0);
+    text += travellers > 1 ? ` (total for ${travellers} travellers).` : '.';
+    if (meta.unpricedCount > 0) {
+      text += ` ${meta.unpricedCount} itinerar${meta.unpricedCount === 1 ? 'y' : 'ies'} without a listed fare ${meta.unpricedCount === 1 ? 'is' : 'are'} not shown.`;
+    }
+
+    const updated = flightUpdatedLabel(meta.retrievedAt);
     const sourceNote = isLive
-      ? dataStatusChip('live', 'Live', 'Real prices and schedules from Google Flights (via SerpApi)') +
-        (cached ? dataStatusChip('cached', 'Cached', 'The same live answer, fetched within the last 5 minutes') : '')
-      : ` <span style="color:#e67e22; font-weight:600;">(showing demo data — live prices unavailable)</span>` +
-        dataStatusChip('demo', 'Demo data', 'Generated sample flights, not real prices or schedules');
-    return `<span class="insight-icon">📈</span> Prices are <strong>${verdict}</strong> for this route right now — typical one-way fares range from
-            <strong>₹${min.toLocaleString('en-IN')}</strong> to <strong>₹${max.toLocaleString('en-IN')}</strong>.${sourceNote}`;
+      ? dataStatusChip('live', 'Live', 'Prices and schedules from Google Flights (via SerpApi)') +
+        (meta.cached === true ? dataStatusChip('cached', 'Cached', 'The same live answer, fetched within the last 5 minutes') : '') +
+        (updated ? ` <span class="flight-updated">${updated}</span>` : '')
+      : dataStatusChip('unverified', 'Unverified', 'These prices did not come back marked as live, so they could not be verified');
+    return `<span class="insight-icon">📈</span> ${text}${sourceNote}`;
   }
 
   function renderFlightResults() {
@@ -6220,8 +7267,8 @@
 
     let html = '';
     if (flightSortKey === 'best') {
-      const best = filtered.filter(f => f.best).sort(withAirlinePriority((a, b) => a.price - b.price, filters));
-      const other = filtered.filter(f => !f.best).sort(withAirlinePriority((a, b) => a.price - b.price, filters));
+      const best = filtered.filter(f => f.best).sort(compareFlightsByPrice);
+      const other = filtered.filter(f => !f.best).sort(compareFlightsByPrice);
       currentDisplayedFlights = [...best, ...other];
       if (best.length) {
         html += `<div class="flight-section-label">Best Flights</div>` + best.map((f, i) => renderFlightCard(f, i)).join('');
@@ -6232,10 +7279,10 @@
     } else {
       const sorted = [...filtered];
       let comparator = () => 0;
-      if (flightSortKey === 'price') comparator = (a, b) => a.price - b.price;
+      if (flightSortKey === 'price') comparator = compareFlightsByPrice;
       else if (flightSortKey === 'departure') comparator = (a, b) => a.departureTime.localeCompare(b.departureTime);
       else if (flightSortKey === 'duration') comparator = (a, b) => a.durationMinutes - b.durationMinutes;
-      sorted.sort(withAirlinePriority(comparator, filters));
+      sorted.sort(comparator);
       currentDisplayedFlights = sorted;
       html = sorted.map((f, i) => renderFlightCard(f, i)).join('');
     }
@@ -6332,6 +7379,7 @@
     try {
       const body = await fetchLiveFlights(fromCode, toCode);
       const results = (body && body.results) || [];
+      flightSearchMeta = (body && body.meta) || {};
 
       if (results.length === 0) {
         flightSearchResults = [];
@@ -6343,29 +7391,15 @@
       resetFlightRangeFilters(results);
       const insightBar = document.getElementById('flightInsightBar');
       insightBar.style.display = 'flex';
-      // Only the backend's own word makes these live: when SerpApi fails it
-      // answers with generated flights and meta.source "mock".
-      const meta = (body && body.meta) || {};
-      insightBar.innerHTML = priceInsightHtml(results, meta.source === 'live', { cached: meta.cached === true });
+      insightBar.innerHTML = priceInsightHtml(results, flightSearchMeta.source === 'live', flightSearchMeta);
       renderFlightResults();
       revealFlightFilters();
     } catch (err) {
-      // Live API unreachable (backend not running, no credentials, network error, etc.)
-      // Degrade gracefully to the bundled demo dataset when we have one for this route,
-      // clearly labeled as demo data rather than pretending it's live.
-      const demoFlights = flightRoutes[`${fromCode}->${toCode}`];
-      if (demoFlights && demoFlights.length) {
-        flightSearchResults = demoFlights;
-        resetFlightRangeFilters(demoFlights);
-        const insightBar = document.getElementById('flightInsightBar');
-        insightBar.style.display = 'flex';
-        insightBar.innerHTML = priceInsightHtml(demoFlights, false);
-        renderFlightResults();
-        revealFlightFilters();
-      } else {
-        flightSearchResults = [];
-        showFlightErrorState(fromCode, toCode, err.message);
-      }
+      // Backend unreachable, not configured, or SerpApi failed: say so. No
+      // stand-in flights are shown in place of real ones.
+      flightSearchResults = [];
+      flightSearchMeta = {};
+      showFlightErrorState(fromCode, toCode, err.message);
     }
   }
 
@@ -6494,7 +7528,7 @@
     { code: 'CNGR', name: 'Chengannur', category: 'Regional Hub / Junction', city: 'Chengannur' },
     { code: 'MS', name: 'Chennai Egmore', category: 'Metropolitan Hub', city: 'Chennai' },
     { code: 'CPR', name: 'Chhapra', category: 'Regional Hub / Junction', city: 'Chhapra' },
-    { code: 'CPSN', name: 'Chhatrapati Sambhaji Nagar', category: 'Regional Hub / Junction', city: 'Chhatrapati Sambhaji Nagar' },
+    { code: 'CPSN', name: 'C Sambhajinagar', category: 'Regional Hub / Junction', city: 'Chhatrapati Sambhaji Nagar' },
     { code: 'CWA', name: 'Chhindwara Jn', category: 'Regional Hub / Junction', city: 'Chhindwara' },
     { code: 'CLX', name: 'Chirala', category: 'Regional Hub / Junction', city: 'Chirala' },
     { code: 'CKTD', name: 'Chitrakutdham Karwi', category: 'Regional Hub / Junction', city: 'Chitrakot' },
@@ -7382,6 +8416,7 @@
   // re-check any specific class (or one the initial search only estimated).
   // A non-live answer says why (`reason`); it never means "no seats".
   const SEAT_REFRESH_REASON_LABELS = {
+    not_supported: 'No live data',
     not_configured: 'Live check off',
     rate_limited: 'Try again later',
     no_data: 'No live data',
@@ -7412,18 +8447,18 @@
 
       if (body && body.live) {
         const fareEl = pill.querySelector('.fare');
-        const statusEl = pill.querySelector('[class^="avl-"]');
+        let statusEl = pill.querySelector('[class^="avl-"]');
         if (fareEl && typeof body.fare === 'number') fareEl.textContent = `₹${body.fare}`;
+        if (!statusEl) {
+          // An estimated class has no status yet: add one before the button.
+          btn.insertAdjacentHTML('beforebegin', '<span></span>');
+          statusEl = btn.previousElementSibling;
+        }
         if (statusEl) {
           statusEl.className = `avl-${body.tier}`;
           statusEl.textContent = body.status;
         }
         btn.textContent = '⟳ Refreshed';
-      } else if (body && body.reason === 'not_supported') {
-        // No live seat source exists: offer IRCTC instead, for good.
-        btn.insertAdjacentHTML('afterend', irctcSeatLinkHtml(body.message));
-        btn.remove();
-        return;
       } else {
         btn.textContent = body ? (SEAT_REFRESH_REASON_LABELS[body.reason] || 'No live data') : 'Check failed';
         btn.title = (body && body.message) || '';
@@ -8396,11 +9431,10 @@
         const body = await fetchLiveFlights(pair.from.code, pair.to.code);
         const results = (body && body.results) || [];
         if (!results.length) throw new Error('empty');
-        // Mock flights (SerpApi failed) are demo prices, not live ones
+        // The backend only ever returns live flights (or an error)
         return { price: Math.min(...results.map(r => r.price)), duration: compareShortest(results), source: body.meta && body.meta.source === 'live' ? 'live' : 'demo' };
       } catch (e) {
-        const demo = flightRoutes[`${pair.from.code}->${pair.to.code}`];
-        if (demo && demo.length) return { price: Math.min(...demo.map(f => f.price)), duration: compareShortest(demo), source: 'demo' };
+        // No live fare: a clearly labelled "Estimated fare", never sample flights
         return { price: compareEstimateFare('flights', pair.from.code, pair.to.code, international), source: 'estimated' };
       }
     }
@@ -9204,8 +10238,9 @@
   }
 
   // "Sorting" dropdown above the options list. Options only appear for the
-  // modes whose results carry that data (ratings and seats are bus-only,
-  // booking status is train-only).
+  // modes whose results carry that data (ratings and seats are bus-only).
+  // "Most sought after" is bus-only too: train results carry no seat or
+  // waitlist status (the train API has no seat-availability endpoint).
   const COMPARE_SORTS = [
     { key: 'relevance', label: 'Relevance', modes: ['flights', 'trains', 'buses'] },
     { key: 'popularity', label: 'Popularity', modes: ['buses'] },
@@ -9215,7 +10250,7 @@
     { key: 'arrival', label: 'Arrival time', modes: ['flights', 'trains', 'buses'] },
     { key: 'duration', label: 'Duration', modes: ['flights', 'trains', 'buses'] },
     { key: 'rating', label: 'Rating', modes: ['buses'] },
-    { key: 'demand', label: 'Most sought after', modes: ['trains', 'buses'] }
+    { key: 'demand', label: 'Most sought after', modes: ['buses'] }
   ];
   const COMPARE_SORT_HINT = {
     relevance: 'best mix of price and travel time', popularity: 'most rated first', priceAsc: 'cheapest first',
@@ -9227,15 +10262,6 @@
   function compareSetSort(key) {
     compareSort = key;
     compareRenderList();
-  }
-
-  // Train demand from the booking status: waitlist > RAC > available.
-  function compareTrainDemand(t) {
-    return Math.max(0, ...(t.classes || []).map(c => {
-      const s = String(c.status || '');
-      const n = parseInt((s.match(/\d+/) || ['0'])[0], 10);
-      return /WL|wait/i.test(s) ? 2000 + n : /RAC/i.test(s) ? 1000 + n : 0;
-    }));
   }
 
   function compareSortCards(mode, cards, key) {
@@ -9255,9 +10281,7 @@
       arrival: (a, b) => num(arr(a)) - num(arr(b)),
       duration: (a, b) => num(a.mins) - num(b.mins),
       rating: (a, b) => (b.src.rating || 0) - (a.src.rating || 0),
-      demand: mode === 'trains'
-        ? (a, b) => compareTrainDemand(b.src) - compareTrainDemand(a.src)
-        : (a, b) => num(a.src.seatsAvailable) - num(b.src.seatsAvailable)
+      demand: (a, b) => num(a.src.seatsAvailable) - num(b.src.seatsAvailable)
     }[key] || ((a, b) => a.price - b.price);
     return cards.slice().sort((a, b) => by(a, b) || a.price - b.price);
   }
@@ -10162,6 +11186,7 @@
     tmWrite('tm_auth_last', session);
     tmCloseLogin();
     tmRenderAccountBtn();
+    if (typeof busCoOnLogin === 'function') busCoOnLogin(session);
     tmToast(`${greeting}, ${session.name.split(' ')[0]}! 🎉`);
   }
 
@@ -10291,5 +11316,552 @@
   })();
 </script>
 
+
+<!-- ===================== Bus booking: Passenger Details → Payment → Ticket ===================== -->
+<div class="bk-overlay bus-co" id="busCheckout" role="dialog" aria-modal="true" aria-labelledby="busCoTitle">
+  <div class="bk-top">
+    <button type="button" class="bk-back" id="busCoBackBtn" onclick="busCoBack()">← Back</button>
+    <h3 id="busCoTitle">Book Bus Ticket</h3>
+  </div>
+  <div class="bk-scroll" id="busCoScroll">
+    <div class="bk-wrap">
+      <div class="bk-steps" id="busCoSteps"></div>
+      <div id="busCoBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Train booking: Passenger Details ===================== -->
+<div class="bk-overlay" id="bkOverlay" role="dialog" aria-modal="true" aria-labelledby="bkTitle">
+  <div class="bk-top">
+    <button type="button" class="bk-back" onclick="bkClose()">← Back to results</button>
+    <h3 id="bkTitle">Book Train Ticket</h3>
+  </div>
+  <div class="bk-scroll" id="bkScroll">
+    <div class="bk-wrap">
+      <div class="bk-steps" id="bkSteps"></div>
+      <div id="bkBody"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ---------- Train booking: Book Now → Passenger Details ----------
+     Mirrors IRCTC's psgninput flow in three steps:
+       1. Passenger Details — journey summary + boarding station, passengers
+          (name, age, gender, nationality, berth preference) with suggestions
+          from the saved list, infants without berth, contact, GST, other
+          preferences, travel insurance and payment mode, plus a fare summary;
+       2. Review Journey — everything entered, read back for checking;
+       3. Payment — TravelMate has no payment gateway, so the final step hands
+          the rider to IRCTC with the details ready to copy.
+     Pick a class on the card first (click its pill); otherwise the cheapest
+     class is used. Passengers who go through step 1 are saved to this
+     device's list (localStorage) and suggested next time, like IRCTC's
+     master list. */
+  const BK_SAVED_KEY = 'tm_saved_passengers';
+  const BK_MAX_PSG = 6, BK_MAX_INF = 2;
+  const BK_CLASS_NAMES = {
+    '1A': 'AC First Class (1A)', '2A': 'AC 2 Tier (2A)', '3A': 'AC 3 Tier (3A)', '3E': 'AC 3 Economy (3E)',
+    'CC': 'AC Chair Car (CC)', 'EC': 'Exec. Chair Car (EC)', 'EA': 'Anubhuti Class (EA)', 'FC': 'First Class (FC)',
+    'SL': 'Sleeper (SL)', '2S': 'Second Sitting (2S)'
+  };
+  const BK_COUNTRIES = ['India', 'Bangladesh', 'Nepal', 'Sri Lanka', 'Bhutan', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Singapore', 'United Arab Emirates', 'Germany', 'France', 'Japan', 'Other'];
+  const BK_RES_CHOICES = [
+    'None',
+    'Book only if all berths are allotted in same coach',
+    'Book only if at least 1 lower berth is allotted',
+    'Book only if 2 lower berths are allotted'
+  ];
+  const BK_FEE = { card: 17.70, upi: 11.80 }; // IRCTC convenience fee per ticket, incl. GST
+  const BK_INSURANCE = 0.45;                   // per passenger with a berth
+
+  let bk = null;
+
+  const bkEsc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const bkMoney = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function bkReadSaved() { try { return JSON.parse(localStorage.getItem(BK_SAVED_KEY) || '[]'); } catch (e) { return []; } }
+  function bkWriteSaved(list) { try { localStorage.setItem(BK_SAVED_KEY, JSON.stringify(list.slice(0, 20))); } catch (e) {} }
+  function bkSession() { try { return typeof tmSession === 'function' ? tmSession() : null; } catch (e) { return null; } }
+
+  function bkBerthOptions(cls) {
+    if (['CC', 'EC', 'EA', '2S'].includes(cls)) return ['No Preference', 'Window Seat'];
+    if (cls === '1A' || cls === 'FC') return ['No Preference', 'Lower', 'Upper'];
+    if (cls === '2A') return ['No Preference', 'Lower', 'Upper', 'Side Lower', 'Side Upper'];
+    return ['No Preference', 'Lower', 'Middle', 'Upper', 'Side Lower', 'Side Upper'];
+  }
+
+  // Stops the rider can board at: the searched station and any later halts
+  // before the destination, when the bundled timetable has this train.
+  function bkBoardingOptions(trainNumber, fromCode, toCode) {
+    const sched = (typeof TRAIN_SCHEDULES !== 'undefined' && TRAIN_SCHEDULES[String(trainNumber)]) || null;
+    const name = (c) => (typeof getStationName === 'function' && getStationName(c)) || c;
+    if (sched) {
+      const i = sched.findIndex(s => s[0] === fromCode);
+      const j = sched.findIndex(s => s[0] === toCode);
+      if (i >= 0 && j > i) {
+        return sched.slice(i, j).map(s => ({ code: s[0], name: s[1], arr: s[2], dep: s[3], day: s[6] - sched[i][6] + 1 }));
+      }
+    }
+    return [{ code: fromCode, name: name(fromCode), arr: null, dep: null, day: 1 }];
+  }
+
+  function bkDateLabel(dateObj) {
+    return dateObj ? formatDayDate(dateObj) : '';
+  }
+  function bkLongDate(dateObj) {
+    return dateObj ? `${dateObj.getUTCDate()} ${MONTH_SHORT[dateObj.getUTCMonth()]} ${dateObj.getUTCFullYear()}` : '';
+  }
+
+  // ---- Open from a train card ----
+  function bkOpenFromCard(btn) {
+    const card = btn.closest('.train-result-card');
+    const trainNumber = btn.dataset.train;
+    const train = (typeof lastTrainResults !== 'undefined' ? lastTrainResults : []).find(t => String(t.trainNumber) === String(trainNumber));
+    if (!train) { if (typeof tmToast === 'function') tmToast('Search again — this train is no longer in the results.'); return; }
+    const picked = card && card.querySelector('.class-pill.selected');
+    const cheapest = train.classes.reduce((m, c) => (c.fare < m.fare ? c : m), train.classes[0]);
+    const clsKey = picked ? picked.dataset.class : cheapest.cls;
+    const cls = train.classes.find(c => c.cls === clsKey) || cheapest;
+    const pillFare = picked && parseFloat((picked.querySelector('.fare') || {}).textContent?.replace(/[^\d.]/g, ''));
+    const fare = pillFare || cls.fare;
+    const fromCode = btn.dataset.from || (lastTrainSearchMeta && lastTrainSearchMeta.from) || '';
+    const toCode = btn.dataset.to || (lastTrainSearchMeta && lastTrainSearchMeta.to) || '';
+    const date = btn.dataset.date || (lastTrainSearchMeta && lastTrainSearchMeta.date) || '';
+    if (!date) { if (typeof tmToast === 'function') tmToast('Pick a journey date and search first.'); return; }
+    const arrOffset = parseInt((/\(\+(\d+)\)/.exec(train.arrivalTime || '') || [0, 0])[1], 10);
+    const s = bkSession();
+
+    bk = {
+      step: 1,
+      train, clsKey: cls.cls, fare: Number(fare) || 0, fareLive: cls.live === true, status: cls.live === true ? cls.status : '',
+      fromCode, toCode, date,
+      depDate: addDaysToISO(date, 0), arrDate: addDaysToISO(date, arrOffset),
+      boarding: bkBoardingOptions(train.trainNumber, fromCode, toCode),
+      boardingCode: fromCode,
+      passengers: [bkBlankPsg()],
+      infants: [],
+      mobile: (s && s.phone ? String(s.phone).replace(/\D/g, '').slice(-10) : ''),
+      email: (s && s.email) || '',
+      gstin: '',
+      autoUpgrade: false, confirmOnly: false, resChoice: 'None', coach: '',
+      insurance: 'yes', pay: 'upi', loyalty: 'skip',
+      errors: {}, formError: ''
+    };
+    if (!picked && typeof tmToast === 'function') tmToast(`Booking ${BK_CLASS_NAMES[bk.clsKey] || bk.clsKey} — tap a class on the card to choose another.`);
+    document.getElementById('bkOverlay').classList.add('open');
+    tmPinBelowHeader();
+    document.body.classList.add('bk-lock');
+    bkRender();
+  }
+
+  function bkBlankPsg() { return { name: '', age: '', gender: '', nationality: 'India', berth: 'No Preference' }; }
+
+  function bkClose() {
+    document.getElementById('bkOverlay').classList.remove('open');
+    document.body.classList.remove('bk-lock');
+    bk = null;
+  }
+
+  // ---- Fare ----
+  function bkFare() {
+    const paying = bk.passengers.length;
+    const ticket = bk.fare * paying;
+    const fee = BK_FEE[bk.pay] || 0;
+    const ins = bk.insurance === 'yes' ? BK_INSURANCE * paying : 0;
+    return { paying, ticket, fee, ins, total: ticket + fee + ins };
+  }
+
+  // ---- Rendering ----
+  function bkRender() {
+    const steps = ['Passenger Details', 'Review Journey', 'Payment'];
+    document.getElementById('bkSteps').innerHTML = steps.map((label, i) => {
+      const n = i + 1;
+      const cls = n === bk.step ? 'active' : n < bk.step ? 'done' : '';
+      return `<div class="bk-step ${cls}"><div class="dot">${n < bk.step ? '✓' : n}</div>${label}</div>`;
+    }).join('');
+    const body = bk.step === 1 ? bkStep1() : bk.step === 2 ? bkStep2() : bkStep3();
+    document.getElementById('bkBody').innerHTML = `
+      <div class="bk-grid">
+        <div class="bk-main">${body}</div>
+        <aside class="bk-side">${bkFareCard()}</aside>
+      </div>`;
+  }
+
+  function bkJourneyCard(editable) {
+    const t = bk.train;
+    const from = getStationName(bk.fromCode) || bk.fromCode;
+    const to = getStationName(bk.toCode) || bk.toCode;
+    const b = bk.boarding.find(x => x.code === bk.boardingCode) || bk.boarding[0];
+    const boardDate = addDaysToISO(bk.date, (b.day || 1) - 1);
+    const bLabel = (x) => `${x.name} (${x.code})${x.dep ? ` | Departure: ${formatTime12hr(x.dep)}` : ''}${x.day > 1 ? ` | Day ${x.day}` : ''}`;
+    return `
+      <div class="bk-card">
+        <div class="bk-train-head">
+          <div class="bk-train-name">${bkEsc(t.trainName)} (${bkEsc(t.trainNumber)})</div>
+          ${bk.status ? `<span class="avl-${bkEsc(bk.train.classes.find(c => c.cls === bk.clsKey)?.tier || '')}" style="font-weight:700;font-size:.85rem">${bkEsc(bk.status)}</span>` : ''}
+        </div>
+        <div class="bk-journey">
+          <div><strong>${formatTime12hr(t.departureTime)} | ${bkEsc(from)}</strong><span>${bkDateLabel(bk.depDate)}</span></div>
+          <div class="dur">${bkEsc(t.duration || '')}</div>
+          <div class="end"><strong>${formatTime12hr(t.arrivalTime)} | ${bkEsc(to)}</strong><span>${bkDateLabel(bk.arrDate)}</span></div>
+        </div>
+        <div style="text-align:center"><span class="bk-class-tag">${bkEsc(BK_CLASS_NAMES[bk.clsKey] || bk.clsKey)} | General</span></div>
+        ${editable ? `
+          <label class="bk-label" for="bkBoarding">Boarding Station</label>
+          <select class="bk-sel" id="bkBoarding" onchange="bk.boardingCode=this.value; bkRender()" ${bk.boarding.length < 2 ? 'disabled' : ''}>
+            ${bk.boarding.map(x => `<option value="${bkEsc(x.code)}" ${x.code === bk.boardingCode ? 'selected' : ''}>${bkEsc(bLabel(x))}</option>`).join('')}
+          </select>
+          <div class="bk-small">Boarding Date: <strong>${bkLongDate(boardDate)}</strong>${bk.boarding.length < 2 ? ' · Other boarding points aren\'t listed for this train.' : ''}</div>`
+        : `<div class="bk-small" style="margin-top:12px">Boarding at <strong>${bkEsc(b.name)} (${bkEsc(b.code)})</strong> on <strong>${bkLongDate(boardDate)}</strong></div>`}
+        <div class="bk-ntes">Please check <a href="https://enquiry.indianrail.gov.in/ntes/" target="_blank" rel="noopener">NTES website</a> or <a href="https://play.google.com/store/apps/details?id=cris.org.in.prs.ntes" target="_blank" rel="noopener">NTES app</a> for actual time before boarding</div>
+      </div>`;
+  }
+
+  function bkFareCard() {
+    const f = bkFare();
+    return `
+      <div class="bk-fare">
+        <h5>Fare Summary</h5>
+        <div class="bk-fare-row"><div>Ticket Fare<small>${bkMoney(bk.fare)} × ${f.paying} passenger${f.paying === 1 ? '' : 's'}${bk.fareLive ? '' : ' (est.)'}</small></div><div>${bkMoney(f.ticket)}</div></div>
+        <div class="bk-fare-row"><div>Convenience Fee<small>${bk.pay === 'upi' ? 'BHIM / UPI' : 'Cards / Net Banking / Wallets'} (incl. GST)</small></div><div>${bkMoney(f.fee)}</div></div>
+        <div class="bk-fare-row"><div>Travel Insurance<small>${bk.insurance === 'yes' ? `${bkMoney(BK_INSURANCE)} per passenger` : 'Not opted'}</small></div><div>${bkMoney(f.ins)}</div></div>
+        <div class="bk-fare-row bk-fare-total"><div>Total Fare</div><div>${bkMoney(f.total)}</div></div>
+        <div class="bk-fare-note">${bk.fareLive ? 'Fare from IRCTC at search time.' : 'Fare is an estimate from the published fare chart.'} IRCTC confirms the final amount at payment. Infants without berth travel free.</div>
+      </div>`;
+  }
+
+  function bkErr(key) { return bk.errors[key] ? ' err' : ''; }
+
+  function bkPsgRow(p, i) {
+    const opts = (arr, v) => arr.map(o => `<option ${o === v ? 'selected' : ''}>${bkEsc(o)}</option>`).join('');
+    const e = bk.errors[`p${i}`];
+    return `
+      <div class="bk-psg-row" data-i="${i}">
+        <div class="bk-name-wrap">
+          <input class="bk-in${bkErr(`p${i}name`)}" placeholder="Full Name as per Govt. ID" maxlength="16" autocomplete="off"
+            value="${bkEsc(p.name)}" oninput="bkSet(${i},'name',this.value); bkSuggest(this, ${i})" onfocus="bkSuggest(this, ${i})" onblur="setTimeout(() => bkHideSuggest(${i}), 150)" aria-label="Passenger ${i + 1} name">
+          <div class="bk-suggest" id="bkSug${i}" hidden></div>
+        </div>
+        <input class="bk-in${bkErr(`p${i}age`)}" type="number" min="5" max="125" placeholder="Age" value="${bkEsc(p.age)}" oninput="bkSet(${i},'age',this.value)" aria-label="Passenger ${i + 1} age">
+        <select class="bk-sel${bkErr(`p${i}gender`)}" onchange="bkSet(${i},'gender',this.value)" aria-label="Passenger ${i + 1} gender">
+          <option value="" ${!p.gender ? 'selected' : ''}>Gender</option>${opts(['Male', 'Female', 'Transgender'], p.gender)}
+        </select>
+        <select class="bk-sel" onchange="bkSet(${i},'nationality',this.value)" aria-label="Passenger ${i + 1} nationality">${opts(BK_COUNTRIES, p.nationality)}</select>
+        <select class="bk-sel" onchange="bkSet(${i},'berth',this.value)" aria-label="Passenger ${i + 1} berth preference">${opts(bkBerthOptions(bk.clsKey), p.berth)}</select>
+        <button type="button" class="bk-del" title="Remove passenger" onclick="bkRemove(${i})" ${bk.passengers.length < 2 ? 'disabled' : ''}>✖</button>
+        ${e ? `<div class="bk-err-msg">${bkEsc(e)}</div>` : ''}
+      </div>`;
+  }
+
+  function bkInfRow(p, i) {
+    const e = bk.errors[`i${i}`];
+    return `
+      <div class="bk-psg-row infant">
+        <div class="bk-name-wrap"><input class="bk-in${bkErr(`i${i}name`)}" placeholder="Infant Name" maxlength="16" value="${bkEsc(p.name)}" oninput="bk.infants[${i}].name=this.value" aria-label="Infant ${i + 1} name"></div>
+        <select class="bk-sel${bkErr(`i${i}age`)}" onchange="bk.infants[${i}].age=this.value" aria-label="Infant ${i + 1} age">
+          <option value="">Age</option>${['Below 1 yr', '1 yr', '2 yrs', '3 yrs', '4 yrs'].map(a => `<option ${a === p.age ? 'selected' : ''}>${a}</option>`).join('')}
+        </select>
+        <select class="bk-sel${bkErr(`i${i}gender`)}" onchange="bk.infants[${i}].gender=this.value" aria-label="Infant ${i + 1} gender">
+          <option value="">Gender</option>${['Male', 'Female', 'Transgender'].map(g => `<option ${g === p.gender ? 'selected' : ''}>${g}</option>`).join('')}
+        </select>
+        <button type="button" class="bk-del" title="Remove infant" onclick="bk.infants.splice(${i},1); bkRender()">✖</button>
+        ${e ? `<div class="bk-err-msg">${bkEsc(e)}</div>` : ''}
+      </div>`;
+  }
+
+  function bkStep1() {
+    const s = bkSession();
+    const ck = (v) => (v ? 'checked' : '');
+    return `
+      <div class="bk-alert">⚠ Senior Citizen concession is not available on this booking. Person With Disability / Journalist concessions are checked on IRCTC after entering details.</div>
+      ${bkJourneyCard(true)}
+
+      <div class="bk-card">
+        <h4 style="display:inline-block;margin-right:12px">IRCTC Co-branded Card Benefits</h4>
+        <div class="bk-radios" style="display:inline-flex">
+          ${[['earn', 'Earn Loyalty Points'], ['pay', 'Pay with Loyalty Points'], ['skip', 'Skip']].map(([v, l]) =>
+            `<label><input type="radio" name="bkLoyal" value="${v}" ${bk.loyalty === v ? 'checked' : ''} onchange="bk.loyalty=this.value">${l}</label>`).join('')}
+        </div>
+        <div class="bk-sub-note">( Pay Less, Earn More: 1% PG Waiver + upto 10% Reward Points )</div>
+      </div>
+
+      <div class="bk-card">
+        <div class="bk-notes" style="margin:-4px -6px 14px">
+          <strong>Notes:</strong>
+          <ol>
+            <li>The ID card will be required during journey.</li>
+            <li>Please fill your current citizenship status while booking the ticket. Incorrect information may attract action under the Foreigners Act, 1946.</li>
+          </ol>
+        </div>
+        <h4>Passenger Details <small>${bk.passengers.length} of ${BK_MAX_PSG}</small></h4>
+        ${bk.passengers.map(bkPsgRow).join('')}
+        <div class="bk-links">
+          <button type="button" class="bk-link" onclick="bkAdd()" ${bk.passengers.length >= BK_MAX_PSG ? 'disabled' : ''}>+ Add Passenger</button>
+          <button type="button" class="bk-link" onclick="bkAddInfant()" ${bk.infants.length >= BK_MAX_INF ? 'disabled' : ''}>+ Add Infant Without Berth</button>
+        </div>
+        ${bk.infants.length ? `<div class="bk-sub-head">Infants (below 5 years, without berth)</div>${bk.infants.map(bkInfRow).join('')}` : ''}
+        <div class="bk-small">Children under 5 years of age shall be carried free and no purchase of any ticket is required (if no separate berth is opted). Add them as infants.</div>
+      </div>
+
+      <div class="bk-card">
+        <h4>Contact Details</h4>
+        ${s ? `<div class="bk-login-hint">Ticket details will be sent to the email and mobile number below.</div>`
+            : `<div class="bk-login-hint"><button type="button" onclick="if (typeof tmOpenLogin==='function') tmOpenLogin('login')">Log in</button> to fill these from your TravelMate account.</div>`}
+        <div class="bk-row2">
+          <div>
+            <label class="bk-label" style="margin-top:0" for="bkMobile">Mobile Number</label>
+            <div class="bk-phone"><span>+91</span><input class="bk-in${bkErr('mobile')}" id="bkMobile" inputmode="numeric" maxlength="10" placeholder="10-digit mobile" value="${bkEsc(bk.mobile)}" oninput="bk.mobile=this.value.replace(/\\D/g,'')"></div>
+          </div>
+          <div>
+            <label class="bk-label" style="margin-top:0" for="bkEmail">Email <span style="text-transform:none;font-weight:400;color:#7b8a92">(optional)</span></label>
+            <input class="bk-in${bkErr('email')}" id="bkEmail" type="email" placeholder="name@example.com" value="${bkEsc(bk.email)}" oninput="bk.email=this.value.trim()">
+          </div>
+        </div>
+        ${bk.errors.contact ? `<div class="bk-err-msg" style="margin-top:6px">${bkEsc(bk.errors.contact)}</div>` : ''}
+      </div>
+
+      <div class="bk-card">
+        <h4>GST Details <small>(Optional)</small></h4>
+        <input class="bk-in${bkErr('gstin')}" style="max-width:320px" maxlength="15" placeholder="GST Identification Number (GSTIN)" value="${bkEsc(bk.gstin)}" oninput="bk.gstin=this.value.toUpperCase().trim()">
+        ${bk.errors.gstin ? `<div class="bk-err-msg" style="margin-top:6px">${bkEsc(bk.errors.gstin)}</div>` : ''}
+      </div>
+
+      <div class="bk-card">
+        <h4>Other Preferences</h4>
+        <div class="bk-row2">
+          <label class="bk-check"><input type="checkbox" ${ck(bk.autoUpgrade)} onchange="bk.autoUpgrade=this.checked">Consider for Auto Upgradation (in higher class you may or may not get lower berth)</label>
+          <label class="bk-check"><input type="checkbox" ${ck(bk.confirmOnly)} onchange="bk.confirmOnly=this.checked">Book only if confirm berths are allotted.</label>
+        </div>
+        <div class="bk-row2" style="margin-top:12px">
+          <div>
+            <label class="bk-label" for="bkResChoice">Reservation Choice</label>
+            <select class="bk-sel" id="bkResChoice" onchange="bk.resChoice=this.value">${BK_RES_CHOICES.map(o => `<option ${o === bk.resChoice ? 'selected' : ''}>${bkEsc(o)}</option>`).join('')}</select>
+          </div>
+          <div>
+            <label class="bk-label" for="bkCoach">Preferred Coach No.</label>
+            <input class="bk-in" id="bkCoach" maxlength="3" placeholder="e.g. B2" value="${bkEsc(bk.coach)}" oninput="bk.coach=this.value.toUpperCase().trim()">
+          </div>
+        </div>
+      </div>
+
+      <div class="bk-card">
+        <h4>Travel Insurance (Incl. of GST) <small>Do you want to take Travel Insurance (₹${BK_INSURANCE}/person)?</small></h4>
+        <div class="bk-radios">
+          <label><input type="radio" name="bkIns" value="yes" ${bk.insurance === 'yes' ? 'checked' : ''} onchange="bk.insurance='yes'; bkRender()">Yes, and I accept the <a href="https://www.irctc.co.in/nget/train-search" target="_blank" rel="noopener" style="color:#1a5f7a">terms &amp; conditions</a></label>
+          <label><input type="radio" name="bkIns" value="no" ${bk.insurance === 'no' ? 'checked' : ''} onchange="bk.insurance='no'; bkRender()">No, I don't want travel insurance</label>
+        </div>
+      </div>
+
+      <div class="bk-card">
+        <h4>Payment Mode</h4>
+        <div class="bk-radios" style="flex-direction:column">
+          <label><input type="radio" name="bkPay" value="card" ${bk.pay === 'card' ? 'checked' : ''} onchange="bk.pay='card'; bkRender()">Pay through Credit &amp; Debit Cards / Net Banking / Wallets / Pay Later (Convenience Fee: ₹${BK_FEE.card.toFixed(2)} + Payment Gateway Charges)</label>
+          <label><input type="radio" name="bkPay" value="upi" ${bk.pay === 'upi' ? 'checked' : ''} onchange="bk.pay='upi'; bkRender()">Pay through BHIM / UPI (Convenience Fee: ₹${BK_FEE.upi.toFixed(2)})</label>
+        </div>
+      </div>
+
+      ${bk.formError ? `<div class="bk-form-err">${bkEsc(bk.formError)}</div>` : ''}
+      <div class="bk-actions">
+        <button type="button" class="bk-btn bk-btn-ghost" onclick="bkClose()">Back</button>
+        <button type="button" class="bk-btn bk-btn-primary" onclick="bkContinue()">Continue</button>
+      </div>`;
+  }
+
+  function bkStep2() {
+    const b = bk.boarding.find(x => x.code === bk.boardingCode) || bk.boarding[0];
+    return `
+      ${bkJourneyCard(false)}
+      <div class="bk-card">
+        <h4>Passenger Details</h4>
+        <div style="overflow-x:auto"><table class="bk-table">
+          <thead><tr><th>#</th><th>Name</th><th>Age</th><th>Gender</th><th>Nationality</th><th>Berth Preference</th></tr></thead>
+          <tbody>${bk.passengers.map((p, i) => `<tr><td>${i + 1}</td><td>${bkEsc(p.name)}</td><td>${bkEsc(p.age)}</td><td>${bkEsc(p.gender)}</td><td>${bkEsc(p.nationality)}</td><td>${bkEsc(p.berth)}</td></tr>`).join('')}</tbody>
+        </table></div>
+        ${bk.infants.length ? `
+          <div class="bk-sub-head">Infants without berth</div>
+          <table class="bk-table"><thead><tr><th>#</th><th>Name</th><th>Age</th><th>Gender</th></tr></thead>
+          <tbody>${bk.infants.map((p, i) => `<tr><td>${i + 1}</td><td>${bkEsc(p.name)}</td><td>${bkEsc(p.age)}</td><td>${bkEsc(p.gender)}</td></tr>`).join('')}</tbody></table>` : ''}
+      </div>
+      <div class="bk-card">
+        <h4>Contact &amp; Preferences</h4>
+        <dl class="bk-kv">
+          <dt>Mobile</dt><dd>+91 ${bkEsc(bk.mobile)}</dd>
+          <dt>Email</dt><dd>${bkEsc(bk.email || '—')}</dd>
+          <dt>Boarding Station</dt><dd>${bkEsc(b.name)} (${bkEsc(b.code)})</dd>
+          ${bk.gstin ? `<dt>GSTIN</dt><dd>${bkEsc(bk.gstin)}</dd>` : ''}
+          <dt>Auto Upgradation</dt><dd>${bk.autoUpgrade ? 'Yes' : 'No'}</dd>
+          <dt>Confirm berths only</dt><dd>${bk.confirmOnly ? 'Yes' : 'No'}</dd>
+          <dt>Reservation Choice</dt><dd>${bkEsc(bk.resChoice)}</dd>
+          ${bk.coach ? `<dt>Preferred Coach</dt><dd>${bkEsc(bk.coach)}</dd>` : ''}
+          <dt>Travel Insurance</dt><dd>${bk.insurance === 'yes' ? 'Yes' : 'No'}</dd>
+          <dt>Payment Mode</dt><dd>${bk.pay === 'upi' ? 'BHIM / UPI' : 'Cards / Net Banking / Wallets'}</dd>
+        </dl>
+      </div>
+      <div class="bk-actions">
+        <button type="button" class="bk-btn bk-btn-ghost" onclick="bkGo(1)">Back</button>
+        <button type="button" class="bk-btn bk-btn-primary" onclick="bkGo(3)">Continue to Payment</button>
+      </div>`;
+  }
+
+  function bkStep3() {
+    const f = bkFare();
+    const lines = bk.passengers.map((p, i) => `${i + 1}. ${p.name}, ${p.age}, ${p.gender}, ${p.berth}`).join('\n');
+    return `
+      <div class="bk-card bk-done">
+        <div class="big">💳</div>
+        <h4 style="margin:6px 0 0">Ready to pay ${bkMoney(f.total)}</h4>
+        <p>TravelMate doesn't take payments yet, so tickets are issued on IRCTC. Open IRCTC, pick
+          <strong>${bkEsc(bk.train.trainName)} (${bkEsc(bk.train.trainNumber)})</strong> in
+          <strong>${bkEsc(BK_CLASS_NAMES[bk.clsKey] || bk.clsKey)}</strong> for <strong>${bkLongDate(bk.depDate)}</strong>,
+          and enter the passengers below — they're saved for next time on this device.</p>
+        <textarea class="bk-in" id="bkCopyText" rows="${Math.min(bk.passengers.length + 1, 7)}" readonly style="max-width:520px;margin:0 auto 14px;display:block;resize:none">${bkEsc(lines)}</textarea>
+        <div class="bk-actions" style="justify-content:center">
+          <button type="button" class="bk-btn bk-btn-ghost" onclick="bkCopy()">Copy passenger list</button>
+          <a class="bk-btn bk-btn-primary" style="text-decoration:none" href="https://www.irctc.co.in/nget/train-search" target="_blank" rel="noopener">Pay on IRCTC ↗</a>
+        </div>
+      </div>
+      <div class="bk-actions">
+        <button type="button" class="bk-btn bk-btn-ghost" onclick="bkGo(2)">Back</button>
+        <button type="button" class="bk-btn bk-btn-ghost" onclick="bkClose()">Done</button>
+      </div>`;
+  }
+
+  // ---- Passenger edits ----
+  function bkSet(i, key, val) {
+    bk.passengers[i][key] = val;
+    if (bk.errors[`p${i}`]) { delete bk.errors[`p${i}`]; }
+  }
+  function bkAdd() {
+    if (bk.passengers.length >= BK_MAX_PSG) return;
+    bk.passengers.push(bkBlankPsg());
+    bkRender();
+    const rows = document.querySelectorAll('.bk-psg-row:not(.infant) .bk-name-wrap input');
+    rows[rows.length - 1]?.focus();
+  }
+  function bkRemove(i) {
+    if (bk.passengers.length < 2) return;
+    bk.passengers.splice(i, 1);
+    bk.errors = {};
+    bkRender();
+  }
+  function bkAddInfant() {
+    if (bk.infants.length >= BK_MAX_INF) return;
+    bk.infants.push({ name: '', age: '', gender: '' });
+    bkRender();
+  }
+
+  // Saved-passenger suggestions under the name box (like IRCTC's master list).
+  function bkSuggest(input, i) {
+    const box = document.getElementById(`bkSug${i}`);
+    if (!box) return;
+    const q = input.value.trim().toLowerCase();
+    const taken = new Set(bk.passengers.filter((_, j) => j !== i).map(p => p.name.trim().toLowerCase()));
+    const list = bkReadSaved().filter(p => !taken.has(p.name.toLowerCase()) && (!q || p.name.toLowerCase().includes(q)));
+    if (!list.length) { box.hidden = true; return; }
+    box.innerHTML = list.slice(0, 6).map((p, k) =>
+      `<button type="button" onmousedown="event.preventDefault(); bkPick(${i}, ${k}, '${bkEsc(q).replace(/'/g, '&#39;')}')">
+        <span><strong>${bkEsc(p.name)}</strong> <span class="meta">| ${bkEsc(p.age)} yrs | ${bkEsc(p.gender)}</span></span><span class="tick">✓</span>
+      </button>`).join('');
+    box.hidden = false;
+  }
+  function bkPick(i, k, q) {
+    const taken = new Set(bk.passengers.filter((_, j) => j !== i).map(p => p.name.trim().toLowerCase()));
+    const list = bkReadSaved().filter(p => !taken.has(p.name.toLowerCase()) && (!q || p.name.toLowerCase().includes(q)));
+    const p = list[k];
+    if (!p) return;
+    const berths = bkBerthOptions(bk.clsKey);
+    bk.passengers[i] = { name: p.name, age: String(p.age), gender: p.gender, nationality: p.nationality || 'India', berth: berths.includes(p.berth) ? p.berth : 'No Preference' };
+    delete bk.errors[`p${i}`];
+    bkRender();
+  }
+  function bkHideSuggest(i) { const b = document.getElementById(`bkSug${i}`); if (b) b.hidden = true; }
+
+  // ---- Validation & navigation ----
+  function bkValidate() {
+    const e = {};
+    const names = new Set();
+    bk.passengers.forEach((p, i) => {
+      const name = p.name.trim().replace(/\s+/g, ' ');
+      p.name = name;
+      const age = parseInt(p.age, 10);
+      const msgs = [];
+      if (!/^[A-Za-z][A-Za-z .']{2,15}$/.test(name)) { e[`p${i}name`] = 1; msgs.push('Name must be 3–16 letters'); }
+      else if (names.has(name.toLowerCase())) { e[`p${i}name`] = 1; msgs.push('Same name entered twice'); }
+      names.add(name.toLowerCase());
+      if (!(age >= 1 && age <= 125)) { e[`p${i}age`] = 1; msgs.push('Enter an age between 5 and 125'); }
+      else if (age < 5) { e[`p${i}age`] = 1; msgs.push('Under 5? Add as an infant without berth, or IRCTC charges full fare for a berth'); }
+      if (!p.gender) { e[`p${i}gender`] = 1; msgs.push('Choose a gender'); }
+      if (msgs.length) e[`p${i}`] = `Passenger ${i + 1}: ${msgs.join(' · ')}`;
+    });
+    bk.infants.forEach((p, i) => {
+      const msgs = [];
+      p.name = (p.name || '').trim();
+      if (!/^[A-Za-z][A-Za-z .']{2,15}$/.test(p.name)) { e[`i${i}name`] = 1; msgs.push('Name must be 3–16 letters'); }
+      if (!p.age) { e[`i${i}age`] = 1; msgs.push('Choose an age'); }
+      if (!p.gender) { e[`i${i}gender`] = 1; msgs.push('Choose a gender'); }
+      if (msgs.length) e[`i${i}`] = `Infant ${i + 1}: ${msgs.join(' · ')}`;
+    });
+    const c = [];
+    if (!/^[6-9]\d{9}$/.test(bk.mobile)) { e.mobile = 1; c.push('Enter a valid 10-digit Indian mobile number'); }
+    if (bk.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(bk.email)) { e.email = 1; c.push('Email looks incomplete'); }
+    if (c.length) e.contact = c.join(' · ');
+    if (bk.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(bk.gstin)) { e.gstin = 1; e.gstinMsg = 1; }
+    if (e.gstinMsg) { e.gstin = 'GSTIN should be 15 characters, like 29ABCDE1234F1Z5'; delete e.gstinMsg; }
+    bk.errors = e;
+    return Object.keys(e).length === 0;
+  }
+
+  function bkContinue() {
+    if (!bkValidate()) {
+      bk.formError = 'Please correct the highlighted fields.';
+      bkRender();
+      const first = document.querySelector('#bkBody .err');
+      if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); first.focus({ preventScroll: true }); }
+      return;
+    }
+    bk.formError = '';
+    // Save these passengers to the device list (newest first, unique by name).
+    const saved = bkReadSaved();
+    bk.passengers.slice().reverse().forEach(p => {
+      const k = saved.findIndex(x => x.name.toLowerCase() === p.name.toLowerCase());
+      if (k >= 0) saved.splice(k, 1);
+      saved.unshift({ name: p.name, age: parseInt(p.age, 10), gender: p.gender, nationality: p.nationality, berth: p.berth });
+    });
+    bkWriteSaved(saved);
+    bkGo(2);
+  }
+
+  function bkGo(step) {
+    bk.step = step;
+    bkRender();
+    document.getElementById('bkScroll').scrollTop = 0;
+  }
+
+  function bkCopy() {
+    const ta = document.getElementById('bkCopyText');
+    const done = () => { if (typeof tmToast === 'function') tmToast('Passenger list copied.'); };
+    if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
+    else { ta.select(); document.execCommand('copy'); done(); }
+  }
+
+  // ---- Wiring: class pills select, Book Now opens the form (Trains tab + Compare page) ----
+  document.addEventListener('click', (e) => {
+    const book = e.target.closest('.tm-book-train');
+    if (book) { e.preventDefault(); bkOpenFromCard(book); return; }
+    const pill = e.target.closest('.train-result-card .class-pill');
+    if (pill && !e.target.closest('.class-refresh-btn')) {
+      const card = pill.closest('.train-result-card');
+      card.querySelectorAll('.class-pill.selected').forEach(p => { if (p !== pill) p.classList.remove('selected'); });
+      pill.classList.toggle('selected');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('bkOverlay').classList.contains('open')) {
+      bkClose();
+      e.stopImmediatePropagation();
+    }
+  }, true);
+</script>
 </body>
 </html>

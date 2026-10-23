@@ -1,0 +1,46 @@
+{
+  "_note": "HAND-BUILT test fixture in SerpApi google_flights booking_options shape, modelled on the Google Flights booking page for an IndiGo + Qatar Airways BLR -> AMS itinerary on 22 Oct 2026 (Qatar Airways Rs 29,134; Goibibo 27,105; MakeMyTrip 27,005; EaseMyTrip 28,505). NOT a recorded SerpApi response; post_data values are placeholders.",
+  "search_metadata": { "id": "fixture-booking", "status": "Success" },
+  "search_parameters": { "engine": "google_flights", "currency": "INR", "gl": "in", "hl": "en", "type": "2", "booking_token": "fixture-token-indigo" },
+  "booking_options": [
+    {
+      "together": {
+        "book_with": "Qatar Airways",
+        "airline": true,
+        "marketed_as": ["6E 1301", "QR 273"],
+        "price": 29134,
+        "option_title": "Economy",
+        "booking_request": { "url": "https://www.google.com/travel/clk/f", "post_data": "u=FIXTURE_QATAR" }
+      }
+    },
+    {
+      "together": {
+        "book_with": "Goibibo",
+        "marketed_as": ["6E 1301", "QR 273"],
+        "price": 27105,
+        "booking_request": { "url": "https://www.google.com/travel/clk/f", "post_data": "u=FIXTURE_GOIBIBO" }
+      }
+    },
+    {
+      "together": {
+        "book_with": "MakeMyTrip",
+        "marketed_as": ["6E 1301", "QR 273"],
+        "price": 27005,
+        "booking_request": { "url": "https://www.google.com/travel/clk/f", "post_data": "u=FIXTURE_MMT" }
+      }
+    },
+    {
+      "together": {
+        "book_with": "EaseMyTrip",
+        "marketed_as": ["6E 1301", "QR 273"],
+        "price": 28505,
+        "booking_request": { "url": "https://evil.example/redirect", "post_data": "u=FIXTURE_EMT" }
+      }
+    },
+    {
+      "separate_tickets": true,
+      "departing": { "book_with": "Kiwi.com", "price": 12000 },
+      "returning": { "book_with": "Kiwi.com", "price": 13000 }
+    }
+  ]
+}

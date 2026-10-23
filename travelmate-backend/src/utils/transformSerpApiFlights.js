@@ -58,13 +58,28 @@ function slugifyAirline(name) {
  * response) — every access below is optional-chained so that case returns
  * null instead of throwing.
  */
-function transformFlightGroup(group, index, isBest) {
-  const segments = group?.flights;
-  if (!Array.isArray(segments) || segments.length === 0) return null;
+// "HH:MM" plus a "(+N)" marker when `dateTimeStr` falls N days after the
+// journey's first departure — the same marker the itinerary's arrival uses.
+function clockTimeWithDayOffset(dateTimeStr, journeyStartDate) {
+  const clock = extractClockTime(dateTimeStr);
+  const offset = daysBetween(journeyStartDate, extractDatePart(dateTimeStr));
+  return clock && offset > 0 ? `${clock} (+${offset})` : clock;
+}
+
+function transformFlightGroup(group, index, isBest, context = {}) {
+  const rawSegments = Array.isArray(group?.flights) ? group.flights.filter(Boolean) : [];
+  if (rawSegments.length === 0) return null;
+
+  // SerpApi lists segments in travel order; sorting on the local departure
+  // time ("YYYY-MM-DD HH:MM" sorts as text) keeps that true even if a
+  // response ever lists them out of order. Segments without a time keep
+  // their place.
+  const segments = rawSegments.every((s) => s?.departure_airport?.time)
+    ? [...rawSegments].sort((a, b) => a.departure_airport.time.localeCompare(b.departure_airport.time))
+    : rawSegments;
 
   const firstSegment = segments[0];
   const lastSegment = segments[segments.length - 1];
-  if (!firstSegment || !lastSegment) return null;
 
   const stops = segments.length - 1;
 
@@ -95,12 +110,15 @@ function transformFlightGroup(group, index, isBest) {
       ? group.total_duration
       : segments.reduce((sum, s) => sum + (typeof s?.duration === 'number' ? s.duration : 0), 0);
 
-  const airlineName = firstSegment.airline || group?.airline || 'Unknown';
+  // Every carrier on the itinerary, in travel order ("IndiGo, KLM") — naming
+  // only the first one hid the airline that flies the long-haul leg.
+  const airlines = [...new Set(segments.map((s) => s?.airline).filter(Boolean))];
+  const airlineName = airlines.length ? airlines.join(', ') : group?.airline || 'Unknown';
 
   const depDateTime = firstSegment.departure_airport?.time;
   const arrDateTime = lastSegment.arrival_airport?.time;
-  const extraDays = daysBetween(extractDatePart(depDateTime), extractDatePart(arrDateTime));
-  const arrivalTimeLabel = extractClockTime(arrDateTime) + (extraDays > 0 ? ` (+${extraDays})` : '');
+  const journeyStartDate = extractDatePart(depDateTime);
+  const arrivalTimeLabel = clockTimeWithDayOffset(arrDateTime, journeyStartDate);
 
   const rawPrice = group?.price;
   const price = typeof rawPrice === 'number' ? rawPrice : (typeof rawPrice === 'string' && rawPrice.trim() !== '' ? Number(rawPrice.replace(/[^0-9.]/g, '')) : null);
@@ -134,10 +152,14 @@ function transformFlightGroup(group, index, isBest) {
       travelClass: (seg?.travel_class || 'Economy').toString(),
       departureAirport: seg?.departure_airport?.id || null,
       departureAirportName: seg?.departure_airport?.name || null,
-      departureTime: extractClockTime(segDep),
+      // Local clock time at each airport, with "(+N)" once the journey has
+      // crossed into a later day — an overnight connection reads correctly.
+      departureTime: clockTimeWithDayOffset(segDep, journeyStartDate),
+      departureDate: extractDatePart(segDep),
       arrivalAirport: seg?.arrival_airport?.id || null,
       arrivalAirportName: seg?.arrival_airport?.name || null,
-      arrivalTime: extractClockTime(segArr),
+      arrivalTime: clockTimeWithDayOffset(segArr, journeyStartDate),
+      arrivalDate: extractDatePart(segArr),
       durationMinutes: segMinutes,
       duration: segMinutes !== null ? minutesToDurationLabel(segMinutes) : null,
       legroom: seg?.legroom || null,
@@ -149,7 +171,8 @@ function transformFlightGroup(group, index, isBest) {
               airportName: layover?.name || nextSeg?.departure_airport?.name || null,
               durationMinutes: layoverMinutes,
               duration: layoverMinutes !== null ? minutesToDurationLabel(layoverMinutes) : null,
-              overnight: !!layover?.overnight_stay
+              // SerpApi documents this as layovers[].overnight
+              overnight: !!(layover?.overnight ?? layover?.overnight_stay)
             }
           : null
     };
@@ -166,8 +189,12 @@ function transformFlightGroup(group, index, isBest) {
   return {
     id: group?.booking_token || `serpapi-${isBest ? 'best' : 'other'}-${index}`,
     airline: airlineName,
-    slug: slugifyAirline(airlineName),
+    airlines,
+    slug: slugifyAirline(airlines[0] || airlineName),
     flightNumber: normalizeFlightNumber(firstSegment.flight_number),
+    flightNumbers: segments.map((s) => normalizeFlightNumber(s?.flight_number)).filter(Boolean),
+    origin: firstSegment.departure_airport?.id || null,
+    destination: lastSegment.arrival_airport?.id || null,
     departureTime: extractClockTime(depDateTime),
     arrivalTime: arrivalTimeLabel,
     durationMinutes: totalMinutes,
@@ -175,31 +202,140 @@ function transformFlightGroup(group, index, isBest) {
     stops,
     stopCity,
     price: normalizedPrice,
-    currency: 'INR',
+    currency: context.currency || 'INR',
     cabinClass: (firstSegment.travel_class || 'ECONOMY').toString().toUpperCase(),
     best: !!isBest,
-    departureDate: extractDatePart(depDateTime),
+    departureDate: journeyStartDate,
+    arrivalDate: extractDatePart(arrDateTime),
     segments: detailSegments,
-    carbonEmissions
+    carbonEmissions,
+    // Google Flights' page for this search — where this fare came from.
+    bookingUrl: context.googleFlightsUrl || null,
+    // Who sells this fare, and the airline's own price, take a second SerpApi
+    // request with this token — made only when the rider asks (Book Now).
+    bookingToken: typeof group?.booking_token === 'string' && group.booking_token ? group.booking_token : null
+  };
+}
+
+const lower = (s) => String(s || '').trim().toLowerCase();
+
+// "₹29,134" or 29134 -> 29134; anything else -> null.
+function parsePrice(raw) {
+  if (typeof raw === 'number') return Number.isFinite(raw) && raw > 0 ? raw : null;
+  if (typeof raw === 'string' && raw.trim()) {
+    const n = Number(raw.replace(/[^0-9.]/g, ''));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return null;
+}
+
+/**
+ * Maps SerpApi's booking_options for one itinerary into the sellers Google
+ * Flights lists ("Book with Qatar Airways  ₹29,134", "Book with MakeMyTrip
+ * ₹27,005"). A seller counts as the airline when SerpApi flags it so, or when
+ * its name is one of the itinerary's airlines.
+ *
+ * Each option: { bookWith, isAirline, price, currency, url, postData, ... }.
+ * Only one-ticket offers (`together`) are listed; separate-ticket offers are
+ * counted as unsupported rather than shown with a price for half the trip.
+ *
+ * @param {object} serpApiJson
+ * @param {string[]} itineraryAirlines e.g. ["IndiGo", "Qatar Airways"]
+ * @returns {{ options: object[], airlineOption: object|null, cheapestOption: object|null,
+ *             unsupportedCount: number, currency: string }}
+ */
+function mapBookingOptions(serpApiJson, itineraryAirlines = []) {
+  const currency = serpApiJson?.search_parameters?.currency || 'INR';
+  const airlineNames = new Set(itineraryAirlines.map(lower).filter(Boolean));
+  const raw = Array.isArray(serpApiJson?.booking_options) ? serpApiJson.booking_options.filter(Boolean) : [];
+
+  const options = [];
+  let unsupportedCount = 0;
+  for (const entry of raw) {
+    const t = entry.together;
+    const price = parsePrice(t?.price);
+    if (!t || !t.book_with || price === null) { unsupportedCount++; continue; }
+    const req = t.booking_request || {};
+    // Only Google's own click-through endpoint is passed on as a link.
+    const url = typeof req.url === 'string' && /^https:\/\/www\.google\.[a-z.]+\//.test(req.url) ? req.url : null;
+    options.push({
+      bookWith: String(t.book_with),
+      isAirline: t.airline === true || airlineNames.has(lower(t.book_with)),
+      price,
+      currency,
+      optionTitle: t.option_title || null,
+      flightNumbers: Array.isArray(t.marketed_as) ? t.marketed_as : [],
+      // Google's click-through: POST postData to url (a form submit).
+      url,
+      postData: url && typeof req.post_data === 'string' ? req.post_data : null,
+      phone: t.booking_phone || null
+    });
+  }
+
+  // Airline first (that's the fare the rider asked to see), then cheapest.
+  options.sort((a, b) => (a.isAirline === b.isAirline ? a.price - b.price : a.isAirline ? -1 : 1));
+  const airlineOption = options.find((o) => o.isAirline) || null;
+  const cheapestOption = options.reduce((best, o) => (!best || o.price < best.price ? o : best), null);
+  return { options, airlineOption, cheapestOption, unsupportedCount, currency };
+}
+
+// The same itinerary can appear twice (once in best_flights, once in
+// other_flights): same flights, same departure. Keep the cheaper copy.
+function itineraryKey(f) {
+  return `${f.flightNumbers.join('|')}@${f.departureDate} ${f.departureTime}`;
+}
+
+/**
+ * Maps a whole SerpApi google_flights response.
+ * @returns {{ results: object[], unpricedCount: number, currency: string,
+ *             priceInsights: object|null, googleFlightsUrl: string|null }}
+ */
+function mapGoogleFlightsResponse(serpApiJson) {
+  const currency = serpApiJson?.search_parameters?.currency || 'INR';
+  const googleFlightsUrl = serpApiJson?.search_metadata?.google_flights_url || null;
+  const context = { currency, googleFlightsUrl };
+
+  const groups = [
+    ...(Array.isArray(serpApiJson?.best_flights) ? serpApiJson.best_flights : []).map((g) => [g, true]),
+    ...(Array.isArray(serpApiJson?.other_flights) ? serpApiJson.other_flights : []).map((g) => [g, false])
+  ];
+  const mapped = groups
+    .filter(([g]) => Boolean(g))
+    .map(([g, isBest], i) => transformFlightGroup(g, i, isBest, context))
+    .filter(Boolean);
+
+  // An itinerary without a price can't be compared or sorted, so it isn't
+  // listed — but it is counted, so the page can say some were left out.
+  const priced = mapped.filter((f) => f.price !== null);
+  const byKey = new Map();
+  for (const f of priced) {
+    const key = itineraryKey(f);
+    const seen = byKey.get(key);
+    if (!seen || f.price < seen.price) byKey.set(key, seen && seen.best ? { ...f, best: true } : f);
+  }
+
+  // Google's own read on this search's prices, passed through as given.
+  const pi = serpApiJson?.price_insights;
+  const priceInsights = pi && typeof pi === 'object'
+    ? {
+        lowestPrice: typeof pi.lowest_price === 'number' ? pi.lowest_price : null,
+        priceLevel: typeof pi.price_level === 'string' ? pi.price_level : null,
+        typicalPriceRange: Array.isArray(pi.typical_price_range) && pi.typical_price_range.length === 2 &&
+          pi.typical_price_range.every((n) => typeof n === 'number') ? pi.typical_price_range : null
+      }
+    : null;
+
+  return {
+    results: [...byKey.values()],
+    unpricedCount: mapped.length - priced.length,
+    currency,
+    priceInsights,
+    googleFlightsUrl
   };
 }
 
 function transformGoogleFlightsResponse(serpApiJson) {
-  const bestGroups = Array.isArray(serpApiJson?.best_flights) ? serpApiJson.best_flights : [];
-  const otherGroups = Array.isArray(serpApiJson?.other_flights) ? serpApiJson.other_flights : [];
-
-  const best = bestGroups
-    .filter(Boolean)
-    .map((g, i) => transformFlightGroup(g, i, true))
-    .filter(Boolean);
-  const other = otherGroups
-    .filter(Boolean)
-    .map((g, i) => transformFlightGroup(g, i, false))
-    .filter(Boolean);
-
-  // Drop any entry SerpApi didn't give us a price for — a card with no
-  // price isn't useful and shouldn't silently render as "null".
-  return [...best, ...other].filter((f) => f.price !== null);
+  return mapGoogleFlightsResponse(serpApiJson).results;
 }
 
-module.exports = { transformGoogleFlightsResponse };
+module.exports = { transformGoogleFlightsResponse, mapGoogleFlightsResponse, mapBookingOptions };

@@ -1,9 +1,12 @@
-// Real, verified IRCTC train data for a handful of well-known routes (train
-// numbers, names, and departure/arrival times match the actual services;
-// fares are illustrative estimates, not live IRCTC pricing). Used by
-// /api/trains/search as the authoritative source when a searched route
-// matches one of these — anything else falls back to the dynamic generator
-// in mockTrainGenerator.js, which is honest fiction rather than fact.
+// A static reference timetable for a handful of well-known routes, checked by
+// hand against the public timetable (train numbers, names, and departure/
+// arrival times match the actual services; fares are illustrative estimates,
+// not live IRCTC pricing). Used by /api/trains/search only as a last resort,
+// when the erail.in timetable can't be reached; such results are labelled
+// source 'reference' and are never live or IRCTC-verified. The class statuses
+// below are hand-entered and are never shown as seat availability (see
+// utils/seatAvailability.js). Routes not listed here get no trains — nothing
+// is generated.
 //
 // IMPORTANT: keyed by STATION CODE pairs ("FROMCODE->TOCODE"), not city names.
 // Two different stations in the same city (e.g. SBC and YPR are both "Bengaluru")

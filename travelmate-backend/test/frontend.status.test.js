@@ -39,6 +39,7 @@ function load(extra = {}) {
     declaration(/function dataStatusChip\(/),
     declaration(/const SEARCH_TIMEOUT_MS = \{/),
     declaration(/async function fetchWithTimeout\(/),
+    declaration(/function flightUpdatedLabel\(/),
     declaration(/function priceInsightHtml\(/),
     declaration(/function trainDataStatus\(/),
     declaration(/function trainFetchedLabel\(/),
@@ -54,9 +55,10 @@ const FLIGHTS = [{ price: 11218 }, { price: 10357 }, { price: 12900 }];
 
 // --- flights -----------------------------------------------------------------
 
-test('flights: a live answer shows "Live", not demo', () => {
-  const html = load().priceInsightHtml(FLIGHTS, true);
+test('flights: a live answer shows "Live" and when it was fetched, not demo', () => {
+  const html = load().priceInsightHtml(FLIGHTS, true, { retrievedAt: '2026-10-22T05:12:00.000Z' });
   assert.match(html, /data-status-live[^>]*>Live</);
+  assert.match(html, /class="flight-updated">Updated \d{1,2}:\d{2}\s?[ap]m</i);
   assert.doesNotMatch(html, /demo/i);
   assert.doesNotMatch(html, /Cached/);
 });
@@ -67,20 +69,44 @@ test('flights: a cached live answer also shows "Cached"', () => {
   assert.match(html, /data-status-cached[^>]*>Cached</);
 });
 
-test('flights: mock or bundled flights show "Demo data", never "Live"', () => {
-  const html = load().priceInsightHtml(FLIGHTS, false);
-  assert.match(html, /showing demo data — live prices unavailable/);
-  assert.match(html, /data-status-demo[^>]*>Demo data</);
-  assert.doesNotMatch(html, />Live</);
+test('flights: only Google\'s own price insights call prices low / typical / high', () => {
+  const api = load();
+  const plain = api.priceInsightHtml(FLIGHTS, true, {});
+  assert.match(plain, /Fares on this list run from <strong>₹10,357<\/strong> to <strong>₹12,900<\/strong>\./);
+  assert.doesNotMatch(plain, /currently (low|high)|typical/i);
+
+  const rated = api.priceInsightHtml(FLIGHTS, true, { priceInsights: { priceLevel: 'high', typicalPriceRange: [8000, 11000], lowestPrice: 10357 } });
+  assert.match(rated, /Google Flights rates prices for this search as <strong>high<\/strong> — usually <strong>₹8,000<\/strong> to <strong>₹11,000<\/strong>\. Cheapest here: <strong>₹10,357<\/strong>\./);
 });
 
-test('flights: the search trusts only meta.source "live" (mock flights are demo)', () => {
-  assert.match(HTML, /priceInsightHtml\(results, meta\.source === 'live', \{ cached: meta\.cached === true \}\)/);
+test('flights: the summary says when fares cover several travellers, and when some had no fare', () => {
+  const html = load().priceInsightHtml(FLIGHTS, true, { adults: 2, children: 1, unpricedCount: 2 });
+  assert.match(html, /\(total for 3 travellers\)\./);
+  assert.match(html, /2 itineraries without a listed fare are not shown\./);
+});
+
+test('flights: an answer not marked live is "Unverified", never "Live" or demo', () => {
+  const html = load().priceInsightHtml(FLIGHTS, false);
+  assert.match(html, /data-status-unverified[^>]*>Unverified</);
+  assert.doesNotMatch(html, />Live</);
+  assert.doesNotMatch(html, /demo/i);
+});
+
+test('flights: the search trusts only meta.source "live"', () => {
+  assert.match(HTML, /priceInsightHtml\(results, flightSearchMeta\.source === 'live', flightSearchMeta\)/);
   assert.doesNotMatch(HTML, /priceInsightHtml\(results, true\)/);
 });
 
+test('flights: no bundled sample flights exist to stand in for a failed search', () => {
+  assert.doesNotMatch(HTML, /flightRoutes/);
+  const searchFlights = declaration(/async function searchFlights\(/);
+  const onError = searchFlights.slice(searchFlights.indexOf('catch (err)'));
+  assert.match(onError, /flightSearchResults = \[\];[\s\S]*showFlightErrorState\(fromCode, toCode, err\.message\)/);
+  assert.doesNotMatch(onError, /renderFlightResults/);
+});
+
 test('compare page: flight and bus prices are live only when the backend says "live"', () => {
-  assert.match(HTML, /compareShortest\(results\), source: body\.meta && body\.meta\.source === 'live' \? 'live' : 'demo' \};\s*\} catch \(e\) \{\s*const demo = flightRoutes/);
+  assert.match(HTML, /compareShortest\(results\), source: body\.meta && body\.meta\.source === 'live' \? 'live' : 'demo' \};\s*\} catch \(e\) \{[^}]*return \{ price: compareEstimateFare\('flights'/);
   assert.match(HTML, /results\.map\(b => b\.fare\)\), duration: compareShortest\(results\), source: body\.meta && body\.meta\.source === 'live' \? 'live' : 'demo' \}/);
 });
 

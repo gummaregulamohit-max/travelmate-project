@@ -1,6 +1,7 @@
 // Seat availability is never invented: the backend labels every non-live
 // class "Check seats on IRCTC", says why a live lookup gave nothing, and the
-// TravelMate.html class pills send each train's own stations. Offline: axios is
+// TravelMate.html class pills (each with a Refresh button) send each train's
+// own stations. Offline: axios is
 // stubbed, and the class-availability provider call makes no request.
 
 const { test, before, after, beforeEach, afterEach } = require('node:test');
@@ -160,29 +161,37 @@ function declaration(startPattern) {
 function loadFrontend(extra = {}) {
   const context = vm.createContext({ setTimeout: () => {}, URLSearchParams, lastTrainSearchMeta: null, ...extra });
   vm.runInContext([
-    /const IRCTC_TRAIN_SEARCH_URL = '[^']+';/.exec(HTML)[0],
     /const IRCTC_SEAT_NOTE = '[^']+';/.exec(HTML)[0],
-    /const escapeAttr = .+;/.exec(HTML)[0],
-    declaration(/function irctcSeatLinkHtml\(/),
     declaration(/function trainCardStationCodes\(/),
     declaration(/const SEAT_REFRESH_REASON_LABELS = \{/),
     declaration(/async function refreshClassFare\(/),
-    'this.api = { IRCTC_TRAIN_SEARCH_URL, IRCTC_SEAT_NOTE, irctcSeatLinkHtml, trainCardStationCodes, refreshClassFare };'
+    'this.api = { IRCTC_SEAT_NOTE, trainCardStationCodes, refreshClassFare };'
   ].join('\n'), context);
   return context;
 }
 
 // A class pill with a refresh button, as far as refreshClassFare touches them.
-function fakePill(dataset) {
-  const pill = { dataset, querySelector: () => null, inserted: '' };
+// `children` holds the elements inserted next to the button.
+function fakePill(dataset, { fare = '₹865 (est.)' } = {}) {
+  const fareEl = { textContent: fare };
+  const children = [];
+  const pill = {
+    dataset, children, inserted: '',
+    querySelector: (sel) => (sel === '.fare' ? fareEl : sel.startsWith('[class^="avl-"]') ? children.find(c => c.className.startsWith('avl-')) || null : null)
+  };
   const btn = {
-    textContent: '⟳ Refresh', title: '', disabled: false, removed: false,
+    textContent: '⟳ Refresh', title: '', disabled: false, removed: false, previousElementSibling: null,
     classList: { add() {}, remove() {} },
     closest: () => pill,
-    insertAdjacentHTML(where, html) { pill.inserted += html; },
+    insertAdjacentHTML(where, html) {
+      pill.inserted += html;
+      const el = { className: '', textContent: '' };
+      children.push(el);
+      if (where === 'beforebegin') this.previousElementSibling = el;
+    },
     remove() { this.removed = true; }
   };
-  return { pill, btn };
+  return { pill, btn, fareEl };
 }
 
 test('TravelMate: a card uses its train\'s own stations, not the searched ones', () => {
@@ -207,19 +216,31 @@ test('TravelMate: refresh sends the pill\'s own train, class, stations and date'
   assert.deepEqual(Object.fromEntries(url.searchParams), { trainNumber: '12649', classType: 'SL', from: 'YPR', to: 'KCG', date: '2026-10-30' });
 });
 
-test('TravelMate: "not_supported" swaps the button for "Check seats on IRCTC", never "Unavailable"', async () => {
+test('TravelMate: "not_supported" keeps the Refresh button, labelled "No live data", and adds no link', async () => {
   const fetch = async () => ({ json: async () => ({ live: false, cls: 'SL', reason: 'not_supported', message: 'Live seat availability is not offered' }) });
   const { api } = loadFrontend({ fetch });
   const { pill, btn } = fakePill({ train: '12649', class: 'SL', from: 'YPR', to: 'KCG', date: '2026-10-30' });
   await api.refreshClassFare(btn);
-  assert.equal(btn.removed, true);
-  assert.match(pill.inserted, /Check seats on IRCTC/);
-  assert.ok(pill.inserted.includes(`href="${api.IRCTC_TRAIN_SEARCH_URL}"`));
-  assert.ok(!/Unavailable/i.test(btn.textContent + pill.inserted));
+  assert.equal(btn.removed, false);
+  assert.equal(btn.textContent, 'No live data');
+  assert.equal(btn.title, 'Live seat availability is not offered');
+  assert.equal(pill.inserted, '', 'nothing inserted');
+  assert.ok(!/Unavailable/i.test(btn.textContent));
+});
+
+test('TravelMate: a live answer on an estimated class shows the live fare and a status', async () => {
+  const fetch = async () => ({ json: async () => ({ live: true, cls: '3A', fare: 905, status: 'AVAILABLE-0042', tier: 'available' }) });
+  const { api } = loadFrontend({ fetch });
+  const { pill, btn, fareEl } = fakePill({ train: '17661', class: '3A', from: 'KCG', to: 'CPSN', date: '2026-10-21' });
+  await api.refreshClassFare(btn);
+  assert.equal(fareEl.textContent, '₹905', 'the (est.) mark is gone');
+  assert.equal(pill.children.length, 1);
+  assert.deepEqual({ ...pill.children[0] }, { className: 'avl-available', textContent: 'AVAILABLE-0042' });
+  assert.equal(btn.textContent, '⟳ Refreshed');
 });
 
 test('TravelMate: other non-live reasons get an honest label, not "Unavailable"', async () => {
-  const labels = { rate_limited: 'Try again later', not_configured: 'Live check off', no_data: 'No live data', provider_error: 'Check failed' };
+  const labels = { not_supported: 'No live data', rate_limited: 'Try again later', not_configured: 'Live check off', no_data: 'No live data', provider_error: 'Check failed' };
   for (const [reason, label] of Object.entries(labels)) {
     const fetch = async () => ({ json: async () => ({ live: false, reason, message: `msg for ${reason}` }) });
     const { api } = loadFrontend({ fetch });
@@ -238,12 +259,17 @@ test('TravelMate: an unreadable response is "Check failed"', async () => {
   assert.equal(btn.textContent, 'Check failed');
 });
 
-test('TravelMate: class pills carry their stations and date, and non-live ones link to IRCTC', () => {
+test('TravelMate: class pills carry their stations and date, and every class has a Refresh button', () => {
   const pill = /<div class="class-pill"[^>]*>[\s\S]*?<\/div>\s*`\)\.join/.exec(HTML);
   assert.ok(pill, 'class pill template not found');
   assert.match(pill[0], /data-from="\$\{codes\.from\}" data-to="\$\{codes\.to\}" data-date="\$\{journeyDate \|\| ''\}"/);
-  assert.match(pill[0], /c\.live === true\s*\?/);
-  assert.match(pill[0], /: irctcSeatLinkHtml\(\)/);
+  // Only a live class shows a seat status; the button is outside that condition
+  assert.match(pill[0], /\$\{c\.live === true \? `<span class="avl-\$\{c\.tier\}">\$\{c\.status\}<\/span>` : ''\}\s*<button type="button" class="class-refresh-btn"/);
+});
+
+test('TravelMate: no "Check seats on IRCTC" link is left on the page', () => {
+  assert.ok(!/Check seats on IRCTC/.test(HTML), 'link text found');
+  assert.ok(!/seat-check-link|irctcSeatLinkHtml/.test(HTML), 'link code found');
 });
 
 test('TravelMate: no "Unavailable" or "Check availability" wording is left', () => {
@@ -251,81 +277,21 @@ test('TravelMate: no "Unavailable" or "Check availability" wording is left', () 
   assert.ok(!/check availability/i.test(HTML), '"Check availability" found');
 });
 
-// --- "Check seats on IRCTC": a real link to IRCTC's official train search ----
+// --- Book Now: in-page passenger form, then IRCTC's official train search ----
 
-// Every attribute of the one <a> element in `html`, decoded.
-function linkAttributes(html) {
-  const anchors = html.match(/<a\s[^>]*>/g) || [];
-  assert.equal(anchors.length, 1, `expected exactly one link in: ${html}`);
-  const attrs = {};
-  for (const [, name, value] of anchors[0].matchAll(/([a-z-]+)="([^"]*)"/g)) {
-    attrs[name] = value.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-  }
-  return attrs;
-}
-
-test('TravelMate: the IRCTC URL is the official train search page, with no guessed parameters', () => {
-  const { api } = loadFrontend();
-  const url = new URL(api.IRCTC_TRAIN_SEARCH_URL);
-  assert.equal(url.protocol, 'https:');
+test('TravelMate: Book Now opens the in-page booking form, whose payment step hands off to the IRCTC train search the backend points to', () => {
+  const url = new URL(IRCTC_SEAT_CHECK_URL);
   assert.equal(url.hostname, 'www.irctc.co.in');
   assert.equal(url.pathname, '/nget/train-search');
-  assert.equal(url.search, '', 'no query string');
-  assert.equal(url.hash, '', 'no fragment');
-  // The same page the backend points to, and the one "Book Now" opens
-  assert.equal(api.IRCTC_TRAIN_SEARCH_URL, IRCTC_SEAT_CHECK_URL);
-  assert.ok(HTML.includes(`class="ab-select-btn" href="${IRCTC_SEAT_CHECK_URL}"`), 'Book Now uses the same URL');
-});
-
-test('TravelMate: "Check seats on IRCTC" is a link that opens IRCTC in a new tab', () => {
-  const { api } = loadFrontend();
-  const html = api.irctcSeatLinkHtml();
-  const attrs = linkAttributes(html);
-  assert.equal(attrs.href, IRCTC_SEAT_CHECK_URL);
-  assert.equal(attrs.target, '_blank');
-  assert.deepEqual(attrs.rel.split(/\s+/).sort(), ['noopener', 'noreferrer']);
-  assert.match(attrs['aria-label'], /IRCTC.*opens in a new tab/);
-  assert.match(html, />Check seats on IRCTC ↗<\/a>$/);
-});
-
-test('TravelMate: the link says availability must be verified on IRCTC, not that it is live', () => {
-  const { api } = loadFrontend();
-  const { title } = linkAttributes(api.irctcSeatLinkHtml());
-  assert.equal(title, api.IRCTC_SEAT_NOTE);
-  assert.match(title, /does not show live seat availability/);
-  assert.match(title, /verify seats on IRCTC/);
-  // Nothing in the link reads as a seat status ("Available", "RAC", "WL ...")
-  assert.doesNotMatch(api.irctcSeatLinkHtml(), /\bAvailable\b|\bRAC\b|\bWL\b/);
-});
-
-test('TravelMate: a tooltip with quotes or markup cannot break the link', () => {
-  const { api } = loadFrontend();
-  const hostile = 'Seats "full" <b>now</b> & more';
-  const html = api.irctcSeatLinkHtml(hostile);
-  const attrs = linkAttributes(html);
-  assert.equal(attrs.title, hostile, 'the text survives intact');
-  assert.equal(attrs.href, IRCTC_SEAT_CHECK_URL, 'href is unaffected');
-  assert.ok(!html.includes('<b>'), 'no markup injected');
-});
-
-test('TravelMate: the link that replaces an unsupported Refresh button is the same safe link', async () => {
-  const fetch = async () => ({ json: async () => ({ live: false, reason: 'not_supported', message: 'Not "offered" <here>' }) });
-  const { api } = loadFrontend({ fetch });
-  const { pill, btn } = fakePill({ train: '12649', class: 'SL', from: 'YPR', to: 'KCG', date: '2026-10-30' });
-  await api.refreshClassFare(btn);
-  const attrs = linkAttributes(pill.inserted);
-  assert.equal(attrs.href, IRCTC_SEAT_CHECK_URL);
-  assert.equal(attrs.target, '_blank');
-  assert.equal(attrs.title, 'Not "offered" <here>');
-});
-
-test('TravelMate: no click handler on the train or Compare lists intercepts the link', () => {
-  for (const id of ['trainResultsList', 'compareList']) {
-    const handler = declaration(new RegExp(String.raw`document\.getElementById\('${id}'\)\.addEventListener\('click'`));
-    assert.doesNotMatch(handler, /preventDefault|stopPropagation/, `${id} handler`);
-    assert.doesNotMatch(handler, /seat-check-link|closest\('a/, `${id} handler`);
-  }
-  assert.doesNotMatch(HTML, /\.seat-check-link[^{]*\{[^}]*pointer-events\s*:\s*none/, 'the link is clickable');
+  // The card's Book Now is a button carrying its train, stations and date — not a link away
+  assert.match(HTML, /<button type="button" class="ab-select-btn tm-book-train" data-train="\$\{t\.trainNumber\}" data-from="\$\{codes\.from\}" data-to="\$\{codes\.to\}" data-date="\$\{journeyDate \|\| ''\}">Book Now<\/button>/);
+  assert.ok(!HTML.includes(`class="ab-select-btn" href="${IRCTC_SEAT_CHECK_URL}"`), 'no direct IRCTC link on the card');
+  // Clicking it opens the passenger form
+  assert.match(HTML, /const book = e\.target\.closest\('\.tm-book-train'\);\s*if \(book\) \{ e\.preventDefault\(\); bkOpenFromCard\(book\); return; \}/);
+  // The final (payment) step links to the same IRCTC URL
+  const payStep = /function bkStep3\(\) \{[\s\S]*?\n  \}/.exec(HTML);
+  assert.ok(payStep, 'payment step not found');
+  assert.ok(payStep[0].includes(`href="${IRCTC_SEAT_CHECK_URL}" target="_blank" rel="noopener">Pay on IRCTC ↗</a>`), 'Pay on IRCTC uses the same URL');
 });
 
 test('TravelMate: each train card shows a visible note to verify seats on IRCTC', () => {

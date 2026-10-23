@@ -31,7 +31,7 @@ test('GET /api/health is a 200 with status, version, uptime and timestamp', asyn
 test('providers report configured: false when no keys are set', async () => {
   const { body } = await keyless.get('/api/health');
   assert.deepEqual(body.providers, {
-    flights: { provider: 'SerpApi (Google Flights)', configured: false, fallback: 'mock' },
+    flights: { provider: 'SerpApi (Google Flights)', configured: false, fallback: null },
     trains: { provider: 'Indian Railway IRCTC (RapidAPI)', configured: false, fallback: 'erail.in timetable' },
     buses: { provider: 'simulated', configured: true, fallback: null }
   });

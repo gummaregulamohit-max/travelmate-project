@@ -3,6 +3,10 @@
 // in mockFlightGenerator.js: results are seeded from origin+destination+date,
 // so repeat searches for the same route/date are stable rather than
 // re-randomizing on every call.
+//
+// Not used for train search: /api/trains/search never returns generated
+// trains (it reports no trains instead). Only estimateClassFare is used, by
+// routes/trains.routes.js.
 
 const { findStationByCode } = require('../services/stations.service');
 

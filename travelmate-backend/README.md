@@ -32,14 +32,31 @@ src/utils/transformSerpApiFlights.js — flattens best_flights[] / other_flights
                                           arrivalTime, duration, stops, price, ... }
    │
    ▼
-Response: { results: [...], meta: { ..., source: 'live' | 'mock' } }
+Response: { results: [...], meta: { ..., source: 'live', retrievedAt, cached, priceInsights, googleFlightsUrl } }
 ```
 
-If `SERPAPI_KEY` isn't set, or the SerpApi call fails for any reason (bad key,
-rate limit, outage, unsupported airport), the route falls back to
-`src/utils/mockFlightGenerator.js`, which generates 4–6 realistic flights for
-*any* origin/destination pair. `meta.source` tells you which happened. The
-frontend uses this to show a "showing demo data" note when it's not live.
+Every flight shown comes from SerpApi. If `SERPAPI_KEY` isn't set the route
+answers 503 (`reason: "not_configured"`); if the SerpApi call fails (bad key,
+rate limit, outage, unsupported airport) it answers 502
+(`reason: "provider_error"`). Both carry `results: []` and
+`meta.source: "unavailable"` — no generated stand-in flights. A live answer with
+no flights is a 200 with an empty list.
+
+The search is sent as a visitor from India (`gl=in`), in INR, with the
+passenger counts and cabin from the form. Prices are Google Flights' totals
+for all passengers. Set `SERPAPI_DEEP_SEARCH=true` to use SerpApi's slower deep
+search, documented as closer to the browser's Google Flights results.
+
+### Booking options (Book Now)
+
+`GET /api/flights/booking-options` lists who sells one itinerary and at what
+price, as Google Flights' booking page does (e.g. Qatar Airways ₹29,134 next to
+MakeMyTrip ₹27,005). Send the search parameters plus `token` (the result's
+`bookingToken`), or `flights` (+ `departureTime`) to find the itinerary in the
+cached search. Each call costs one SerpApi search, so the page only makes it
+when the rider clicks Book Now; answers are cached for 5 minutes. The card then
+shows the airline's own price (`airlineOption`), and `cheapestOption` is the
+lowest agent fare.
 
 ## Setup
 
