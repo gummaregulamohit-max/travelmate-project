@@ -663,7 +663,8 @@ test('TravelMate.html opened as a file says where to open it instead; served ove
   const run = (protocol) => {
     const added = [];
     const element = () => ({ style: {}, setAttribute() {}, set innerHTML(v) { this.html = v; } });
-    vm.runInNewContext(code, { location: { protocol }, document: { createElement: element, body: { prepend: (el) => added.push(el) } } });
+    // getElementById: the second notice, above the results (see frontend.status.test.js)
+    vm.runInNewContext(code, { location: { protocol }, document: { createElement: element, body: { prepend: (el) => added.push(el) }, getElementById: () => ({ before() {} }) } });
     return added;
   };
   const shown = run('file:');

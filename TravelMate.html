@@ -6578,6 +6578,9 @@
   // file, quota / key / provider errors) rather than answering "no flights".
   // Both leave flightSearchResults empty; the summary card says which.
   let flightSearchFailed = false;
+  // The search the flight list is waiting for: an answer to an older search
+  // that arrives after a newer one started is dropped (as in searchTrains).
+  let flightSearchToken = null;
   let flightFromLabel = '';
   let flightToLabel = '';
 
@@ -7386,9 +7389,17 @@
     abRouteHead('flightRouteHead', flightCity(fromCode), flightCity(toCode), document.getElementById('flightDepartureDate').value);
     showFlightLoadingState();
     flightSearchFailed = false;
+    // The previous search's fares belong to another route or date: drop them
+    // now (as trains and buses do), so nothing — not even a filter change
+    // while this search loads — can show them again
+    flightSearchResults = [];
+    flightSearchMeta = {};
+    const token = flightSearchToken = {};
 
     try {
       const body = await fetchLiveFlights(fromCode, toCode);
+      // A newer search started while this one was waiting
+      if (flightSearchToken !== token) return;
       const results = (body && body.results) || [];
       flightSearchMeta = (body && body.meta) || {};
 
@@ -7406,6 +7417,7 @@
       renderFlightResults();
       revealFlightFilters();
     } catch (err) {
+      if (flightSearchToken !== token) return;
       // Backend unreachable, not configured, or SerpApi failed: say so. No
       // stand-in flights are shown in place of real ones.
       flightSearchResults = [];
@@ -9208,9 +9220,15 @@
     return new Date(y, m - 1, d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   }
 
+  // The latest searchEntities() call per mode. Only that one marks its mode
+  // done, so a search replaced by a newer one (another route or date) can't
+  // put its results — or none — in the summary while the newer one waits.
+  const uniLatestSearch = {};
+
   // Fills the mode's search tab with already-resolved airport / station /
   // bus-stop entries and runs the search.
   async function searchEntities(mode, fromEntity, toEntity, isoDate, opts) {
+    const call = uniLatestSearch[mode] = {};
     switchTab(mode);
     uniMarkLoading(mode);
 
@@ -9257,6 +9275,7 @@
     if (mode === 'flights') await searchFlights();
     else if (mode === 'trains') await searchTrains();
     else await searchBuses();
+    if (uniLatestSearch[mode] !== call) return { ok: false, superseded: true };
     uniMarkDone(mode);
 
     if (!(opts && opts.quiet)) document.getElementById(mode).scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -11834,6 +11853,15 @@
     notice.style.cssText = 'background:#fff4e5;color:#7a4b00;border-bottom:1px solid #f0c27a;padding:10px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center';
     notice.innerHTML = 'Open TravelMate at <a href="http://localhost:3000/" style="color:#1a5f7a;font-weight:700">http://localhost:3000</a> (start the backend with <code>npm start</code>). Opened as a file, live searches are blocked — trains and buses fall back to demo data.';
     document.body.prepend(notice);
+    // The same warning right above the results, where the sample fares are
+    // read (the banner above scrolls out of view): they are not comparable
+    // with the real results the page shows at http://localhost:3000/.
+    const resultsNotice = document.createElement('div');
+    resultsNotice.className = 'tm-file-results-notice';
+    resultsNotice.setAttribute('role', 'note');
+    resultsNotice.style.cssText = 'background:#fff4e5;color:#7a4b00;border:1px solid #f0c27a;border-radius:10px;padding:12px 16px;margin:14px 0;font:14px/1.5 system-ui,sans-serif';
+    resultsNotice.innerHTML = '<strong>Live searches are unavailable — this page was opened as a file.</strong> Flights can\'t be searched, and every bus and train result shown here is sample (demo) data, not comparable with the real results at <a href="http://localhost:3000/" style="color:#1a5f7a;font-weight:700">http://localhost:3000</a>. Live searches need the backend: start it with <code>npm start</code> and open that address.';
+    document.getElementById('uniSummary').before(resultsNotice);
   }
 </script>
 </body>

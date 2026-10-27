@@ -297,8 +297,9 @@ function loadFlightSearch(fetchLiveFlights, extra = {}) {
     /const TM_FILE_REASON = .+;/.exec(HTML)[0],
     "let flightSearchResults = [], flightSearchMeta = {}, flightFromLabel = '', flightToLabel = '';",
     /let flightSearchFailed = false;/.exec(HTML)[0],
+    /let flightSearchToken = null;/.exec(HTML)[0],
     declaration(/async function searchFlights\(/),
-    'this.api = { searchFlights, state: () => ({ failed: flightSearchFailed, count: flightSearchResults.length }) };'
+    'this.api = { searchFlights, state: () => ({ failed: flightSearchFailed, count: flightSearchResults.length }), prices: () => flightSearchResults.map((f) => f.price) };'
   ].join('\n'), context);
   return { api: context.api, calls };
 }
@@ -520,4 +521,150 @@ test('opened as a file: flights, trains and buses say the page was opened as a f
   assert.match(http.busDataStatusHtml({ source: 'demo', backend: 'offline' }), /The TravelMate backend could not be reached\./);
   // Simulated buses over http keep their own explanation either way
   assert.match(http.busDataStatusHtml({ source: 'demo', backend: 'simulated' }), /No live bus inventory provider is connected/);
+});
+
+// --- overlapping searches: the summary only ever shows the latest search -----
+
+// A promise settled later by the test, standing in for a slow backend answer.
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+test('flights: an older search\'s answer arriving after a newer search started is dropped', async () => {
+  // Bengaluru → Hyderabad, then swapped to Hyderabad → Bengaluru before its answer came
+  const older = [{ price: 1111 }, { price: 1211 }, { price: 1311 }, { price: 1411 }];
+  const newer = [{ price: 7777 }, { price: 7877 }];
+
+  // The older answer arrives last
+  let answers = [deferred(), deferred()];
+  let { api, calls } = loadFlightSearch(() => answers.shift().promise);
+  let [first, second] = answers.slice();
+  let a = api.searchFlights(), b = api.searchFlights();
+  second.resolve({ results: newer, meta: { source: 'live' } }); await b;
+  first.resolve({ results: older, meta: { source: 'live' } }); await a;
+  assert.deepEqual([...api.prices()], [7777, 7877], 'the list and summary keep the newer search');
+  assert.deepEqual(calls, ['results'], 'the older answer is not rendered');
+
+  // The older answer arrives first, while the newer search is still waiting
+  answers = [deferred(), deferred()];
+  ({ api, calls } = loadFlightSearch(() => answers.shift().promise));
+  [first, second] = answers.slice();
+  a = api.searchFlights(); b = api.searchFlights();
+  first.resolve({ results: older, meta: { source: 'live' } }); await a;
+  assert.deepEqual([...api.prices()], [], 'nothing from the older search is shown while the newer one waits');
+  assert.deepEqual(calls, []);
+  second.resolve({ results: newer, meta: { source: 'live' } }); await b;
+  assert.deepEqual([...api.prices()], [7777, 7877]);
+
+  // An older search failing late doesn't turn the newer results into "Search failed"
+  answers = [deferred(), deferred()];
+  ({ api, calls } = loadFlightSearch(() => answers.shift().promise));
+  [first, second] = answers.slice();
+  a = api.searchFlights(); b = api.searchFlights();
+  second.resolve({ results: newer, meta: { source: 'live' } }); await b;
+  first.reject(new Error('Live flight prices could not be retrieved right now.')); await a;
+  assert.deepEqual({ ...api.state() }, { failed: false, count: 2 });
+  assert.deepEqual(calls, ['results']);
+});
+
+test('flights: a new search drops the previous route\'s fares at once — none are left while it loads or after it fails', async () => {
+  const answers = [deferred(), deferred()];
+  const { api, calls } = loadFlightSearch(() => answers.shift().promise);
+  const [first, second] = answers.slice();
+  // Bengaluru → Hyderabad: 4 flights
+  const a = api.searchFlights();
+  first.resolve({ results: [{ price: 1111 }, { price: 1211 }, { price: 1311 }, { price: 1411 }], meta: { source: 'live' } }); await a;
+  assert.deepEqual({ ...api.state() }, { failed: false, count: 4 });
+
+  // Hyderabad → Bengaluru starts: the Bengaluru → Hyderabad fares and count are gone straight away
+  const b = api.searchFlights();
+  assert.deepEqual([...api.prices()], [], 'no fares from the previous route while the new search loads');
+  assert.deepEqual({ ...api.state() }, { failed: false, count: 0 });
+
+  // ...and it fails: still none of them, and the failure is reported
+  second.reject(new Error('Live flight prices could not be retrieved right now.')); await b;
+  assert.deepEqual({ ...api.state() }, { failed: true, count: 0 });
+  assert.deepEqual(calls, ['results', 'error: Live flight prices could not be retrieved right now.']);
+});
+
+// The page's real searchEntities(), with each mode's search stubbed.
+function loadSearchEntities(searches) {
+  const events = [];
+  const element = () => ({ value: '', dataset: {}, scrollIntoView() {} });
+  const elements = {};
+  const context = vm.createContext({
+    document: { getElementById: (id) => elements[id] || (elements[id] = element()) },
+    switchTab() {}, toIsoDate: () => '2026-11-10',
+    uniMarkLoading: (mode) => events.push(`loading ${mode}`),
+    uniMarkDone: (mode) => events.push(`done ${mode}`),
+    searchFlights: () => searches.flights.shift().promise,
+    searchTrains: () => searches.trains.shift().promise,
+    searchBuses: () => searches.buses.shift().promise
+  });
+  vm.runInContext([
+    /const uniLatestSearch = \{\};/.exec(HTML)[0],
+    declaration(/async function searchEntities\(/),
+    'this.searchEntities = searchEntities;'
+  ].join('\n'), context);
+  return { searchEntities: context.searchEntities, events };
+}
+
+test('summary: only the latest search of a mode marks it done — never a search it replaced', async () => {
+  const BLR = { code: 'BLR', city: 'Bengaluru', name: 'Kempegowda International Airport' };
+  const HYD = { code: 'HYD', city: 'Hyderabad', name: 'Rajiv Gandhi International Airport' };
+  for (const mode of ['flights', 'trains', 'buses']) {
+    const runs = [deferred(), deferred()];
+    const { searchEntities, events } = loadSearchEntities({ flights: [], trains: [], buses: [], [mode]: runs.slice() });
+    const older = searchEntities(mode, BLR, HYD, '2026-11-10', { quiet: true });
+    const newer = searchEntities(mode, HYD, BLR, '2026-11-10', { quiet: true });
+    runs[0].resolve();
+    assert.deepEqual({ ...(await older) }, { ok: false, superseded: true }, mode);
+    assert.deepEqual(events, [`loading ${mode}`, `loading ${mode}`], `${mode}: still "Searching…" while the newer search waits`);
+    runs[1].resolve();
+    assert.equal((await newer).ok, true);
+    assert.deepEqual(events, [`loading ${mode}`, `loading ${mode}`, `done ${mode}`], `${mode}: marked done once, by the newer search`);
+  }
+
+  // Each mode is tracked on its own: a train search doesn't replace a flight search
+  const flight = deferred(), train = deferred();
+  const { searchEntities, events } = loadSearchEntities({ flights: [flight], trains: [train], buses: [] });
+  const f = searchEntities('flights', BLR, HYD, '2026-11-10', { quiet: true });
+  const t = searchEntities('trains', BLR, HYD, '2026-11-10', { quiet: true });
+  flight.resolve(); train.resolve();
+  await Promise.all([f, t]);
+  assert.deepEqual(events, ['loading flights', 'loading trains', 'done flights', 'done trains']);
+});
+
+// --- opened as a file: the warning sits right above the results -------------
+
+// The page's last script (the file:// notices), run against a minimal DOM.
+function runFileNoticeScript(protocol) {
+  const script = /<script>\s*(\/\/ TravelMate is served by its backend[\s\S]*?)<\/script>/.exec(HTML);
+  assert.ok(script, 'the file:// notice script is in TravelMate.html');
+  const placed = [];
+  const createElement = () => ({ className: '', style: {}, attributes: {}, innerHTML: '', setAttribute(name, value) { this.attributes[name] = value; } });
+  const document = {
+    createElement,
+    body: { prepend: (el) => placed.push({ where: 'top of the page', el }) },
+    getElementById: (id) => ({ before: (el) => placed.push({ where: `before #${id}`, el }) })
+  };
+  vm.runInContext(script[1], vm.createContext({ document, location: { protocol } }));
+  return placed;
+}
+
+test('opened as a file: a warning right above the results says the results are demo data and live searches need http://localhost:3000/', () => {
+  const placed = runFileNoticeScript('file:');
+  assert.deepEqual(placed.map((p) => p.where), ['top of the page', 'before #uniSummary']);
+  const { el } = placed[1];
+  assert.equal(el.className, 'tm-file-results-notice');
+  assert.equal(el.attributes.role, 'note');
+  assert.match(el.innerHTML, /<strong>Live searches are unavailable — this page was opened as a file\.<\/strong>/);
+  assert.match(el.innerHTML, /Flights can't be searched/);
+  assert.match(el.innerHTML, /every bus and train result shown here is sample \(demo\) data, not comparable with the real results at <a href="http:\/\/localhost:3000\/"/);
+  assert.match(el.innerHTML, /Live searches need the backend: start it with <code>npm start<\/code> and open that address\./);
+  assert.match(el.style.cssText, /background:#fff4e5/, 'styled like the banner at the top');
+
+  assert.deepEqual(runFileNoticeScript('http:'), [], 'served by the backend, neither notice is shown');
 });
