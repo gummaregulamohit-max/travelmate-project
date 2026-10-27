@@ -3490,6 +3490,15 @@
     return (mode === 'buses' ? liveBuses : mode === 'trains' ? lastTrainResults : flightSearchResults).length;
   }
 
+  // Whether a mode's results are sample data rather than a search result:
+  // buses until a live bus provider is connected (see fetchLiveBuses), trains
+  // when the backend couldn't be reached. Flights are never stood in for.
+  function uniModeDemo(mode) {
+    if (mode === 'buses') return !!busDataMeta && busDataMeta.source !== 'live';
+    if (mode === 'trains') return !!lastTrainDataStatus && lastTrainDataStatus.demo === true;
+    return false;
+  }
+
   // Shortest journey among a mode's results, in minutes (null when unknown).
   function uniModeFastest(mode) {
     const list = mode === 'buses' ? liveBuses : mode === 'trains' ? lastTrainResults : flightSearchResults;
@@ -3512,29 +3521,32 @@
     const info = modes.map(mode => {
       if (uniStatus[mode] !== 'done') return { mode, price: null, fastest: null, count: 0 };
       const fares = uniModeFares(mode).filter(f => typeof f === 'number' && f > 0);
-      return { mode, price: fares.length ? Math.min(...fares) : null, fastest: uniModeFastest(mode), count: uniModeCount(mode) };
+      return { mode, price: fares.length ? Math.min(...fares) : null, fastest: uniModeFastest(mode), count: uniModeCount(mode), demo: uniModeDemo(mode) };
     });
-    // A badge only means something when there is another mode to compare with
+    // A badge only means something when there is another mode to compare with,
+    // and sample (demo) fares and times are never compared with real ones
     const lowest = key => {
-      const vals = info.filter(i => i[key] != null).map(i => i[key]);
+      const vals = info.filter(i => i[key] != null && !i.demo).map(i => i[key]);
       return vals.length > 1 ? Math.min(...vals) : null;
     };
     const bestPrice = lowest('price'), bestTime = lowest('fastest');
-    el.innerHTML = info.map(({ mode, price, fastest, count }) => {
+    el.innerHTML = info.map(({ mode, price, fastest, count, demo }) => {
       const status = uniStatus[mode];
       let main, sub, time = '', off = false;
       if (status === 'loading') { main = 'Searching…'; sub = ''; }
       else if (status === 'unavailable') { main = 'Not available'; sub = uniTrip === 'international' && mode !== 'flights' ? 'on international trips' : 'on this route'; off = true; }
-      // A failed flight search is not "no flights" — the reason is shown under Flights
+      // A failed search is not "no results" — the reason is shown under that mode
       else if (mode === 'flights' && flightSearchFailed) { main = 'Search failed'; sub = 'see the reason under Flights'; }
+      else if (mode === 'trains' && trainSearchFailed) { main = 'Search failed'; sub = 'see the reason under Trains'; }
       else if (!count) { main = 'No results'; sub = 'for this route and date'; }
       else {
         main = price != null ? `from ₹${price.toLocaleString('en-IN')}` : 'Fare on request';
         sub = `${count} option${count === 1 ? '' : 's'}`;
+        if (demo) sub += dataStatusChip('demo', 'Demo data', 'Sample data, not real search results');
         if (fastest != null) time = `Fastest ${uniDurationText(fastest)}`;
       }
-      const isCheapest = bestPrice != null && price === bestPrice;
-      const isFastest = bestTime != null && fastest === bestTime;
+      const isCheapest = !demo && bestPrice != null && price === bestPrice;
+      const isFastest = !demo && bestTime != null && fastest === bestTime;
       return `<button type="button" class="uni-sum-card${isCheapest ? ' best' : ''}${isFastest ? ' fast' : ''}${off ? ' off' : ''}" ${off ? 'disabled' : `onclick="uniJump('${mode}')"`}>
         <span class="uni-sum-badges">
           ${isCheapest ? '<span class="uni-sum-badge">Cheapest</span>' : ''}
@@ -4576,6 +4588,10 @@
   // the backend's IRCTC verification status, its cache, or — when the backend
   // couldn't be reached at all — the page's own demo trains.
   let lastTrainDataStatus = null;
+  // Whether the last train search failed (backend unreachable, page opened as a
+  // file, train data unavailable) rather than finding no trains. Both leave
+  // lastTrainResults empty; the summary card says which (as for flights).
+  let trainSearchFailed = false;
 
   function trainDataStatus(metas) {
     const v = m => m.verification || {};
@@ -4669,6 +4685,7 @@
     const multi = fromCodes.length > 1 || toCodes.length > 1;
 
     lastTrainResults = [];
+    trainSearchFailed = false;
     trainSort = { key: null, dir: 1 };
     if (multi) {
       abRouteHead('trainRouteHead', trainCityName(fromCode), trainCityName(toCode), date,
@@ -4720,12 +4737,14 @@
     if (!trains.length) {
       if (live && lastTrainDataStatus.providerDown) {
         // A source failed: that is not the same as "no trains on this route"
+        trainSearchFailed = true;
         showTrainErrorState(fromCode, toCode, 'Train data is unavailable right now. This does not mean there are no trains on this route — please try again later or check IRCTC.');
       } else if (live) {
         showNoTrainsState(fromCode, toCode);
         revealTrainFilters();
       } else {
-        showTrainErrorState(fromCode, toCode, settled[0].err.message);
+        trainSearchFailed = true;
+        showTrainErrorState(fromCode, toCode, TM_OPENED_AS_FILE ? TM_FILE_REASON : settled[0].err.message);
       }
       return;
     }

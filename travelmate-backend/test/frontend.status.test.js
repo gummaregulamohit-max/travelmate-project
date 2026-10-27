@@ -323,23 +323,37 @@ test('flights: a failed search is marked failed and explained — never left loo
   assert.deepEqual({ ...retried.api.state() }, { failed: false, count: 1 }, 'a new search clears the failure');
 });
 
-// The page's real uniRenderSummary(), for the Flights card only.
-function renderSummaryCard({ status, failed = false, count = 0, fares = [] }) {
+// The page's real uniRenderSummary(), for the given cards keyed by mode:
+// { status = 'done', count = 0, fares = [], fastest = null, demo = false }.
+function renderSummary(cards, { flightsFailed = false, trainsFailed = false } = {}) {
   const summary = { innerHTML: '' };
+  const card = (key, fallback) => (mode) => (key in cards[mode] ? cards[mode][key] : fallback);
+  const status = Object.fromEntries(Object.entries(cards).map(([mode, c]) => [mode, c.status || 'done']));
   const context = vm.createContext({
     document: { getElementById: (id) => (id === 'uniSummary' ? summary : null) },
-    uniEnabledModes: () => ['flights'], uniModeFares: () => fares, uniModeFastest: () => null, uniModeCount: () => count
+    uniEnabledModes: () => Object.keys(cards),
+    uniModeFares: card('fares', []), uniModeFastest: card('fastest', null), uniModeCount: card('count', 0), uniModeDemo: card('demo', false)
   });
   vm.runInContext([
     /const UNI_ORDER = .+;/.exec(HTML)[0],
     /const UNI_LABEL = .+;/.exec(HTML)[0],
-    `const uniStatus = { flights: ${JSON.stringify(status)} }; let uniTrip = 'domestic'; let flightSearchFailed = ${failed};`,
+    /const escapeAttr = .+;/.exec(HTML)[0],
+    declaration(/function dataStatusChip\(/),
+    `const uniStatus = ${JSON.stringify(status)}; let uniTrip = 'domestic'; let flightSearchFailed = ${flightsFailed}, trainSearchFailed = ${trainsFailed};`,
     declaration(/function uniDurationText\(/),
     declaration(/function uniRenderSummary\(/),
     'uniRenderSummary();'
   ].join('\n'), context);
   return summary.innerHTML;
 }
+
+// The Flights card only.
+function renderSummaryCard({ status, failed = false, count = 0, fares = [] }) {
+  return renderSummary({ flights: { status, count, fares } }, { flightsFailed: failed });
+}
+
+// One mode's card out of the rendered summary.
+const cardFor = (html, label) => html.split('</button>').find((c) => c.includes(label)) || '';
 
 test('summary card: a failed flight search says "Search failed"; only a real empty answer says "No results"', () => {
   const failedCard = renderSummaryCard({ status: 'done', failed: true });
@@ -354,6 +368,130 @@ test('summary card: a failed flight search says "Search failed"; only a real emp
   assert.match(resultsCard, /from ₹5,710/);
   assert.match(resultsCard, /13 options/);
   assert.match(renderSummaryCard({ status: 'loading', failed: true }), /Searching…/, 'a search in progress is not shown as failed');
+});
+
+test('summary cards: demo buses and trains say "Demo data" and never get the Cheapest / Fastest badge', () => {
+  const badge = /class="uni-sum-badge(?: fast)?">|uni-sum-card best|uni-sum-card fast/;
+  // Opened as a file: sample buses and trains, and the flight search failed
+  const asFile = renderSummary({
+    buses: { count: 90, fares: [549], fastest: 645, demo: true },
+    trains: { count: 2, fares: [395, 1010], fastest: 495, demo: true },
+    flights: { count: 0 }
+  }, { flightsFailed: true });
+  for (const label of ['🚌 Buses', '🚂 Trains']) {
+    assert.match(cardFor(asFile, label), /data-status-demo[^>]*>Demo data</, label);
+  }
+  assert.doesNotMatch(asFile, badge, 'sample fares are not ranked');
+
+  // Served by the backend: sample buses cheaper and quicker than the real
+  // trains and live flights still don't take their badges
+  const served = renderSummary({
+    buses: { count: 12, fares: [150], fastest: 60, demo: true },
+    trains: { count: 10, fares: [220, 395], fastest: 495 },
+    flights: { count: 19, fares: [5070], fastest: 65 }
+  });
+  const buses = cardFor(served, '🚌 Buses');
+  assert.match(buses, />Demo data</);
+  assert.match(buses, /from ₹150/, 'the demo fare is still shown');
+  assert.doesNotMatch(buses, badge);
+  assert.match(cardFor(served, '🚂 Trains'), /uni-sum-badge">Cheapest</);
+  assert.match(cardFor(served, '✈️ Flights'), /uni-sum-badge fast">Fastest</);
+  assert.doesNotMatch(cardFor(served, '🚂 Trains') + cardFor(served, '✈️ Flights'), /Demo data/);
+});
+
+test('summary cards: a failed train search says "Search failed", not "No results"', () => {
+  const failed = renderSummary({ trains: { count: 0 } }, { trainsFailed: true });
+  assert.match(failed, /<span class="uni-sum-price">Search failed<\/span>/);
+  assert.match(failed, /see the reason under Trains/);
+  assert.doesNotMatch(failed, /No results/);
+  assert.match(renderSummary({ trains: { count: 0 } }), /<span class="uni-sum-price">No results<\/span>/, 'a real empty answer is still "No results"');
+});
+
+test('summary cards: buses not marked live and trains from the page\'s own list are demo; flights never are', () => {
+  const demo = (vars, mode) => {
+    const context = vm.createContext({});
+    vm.runInContext(`${vars}\n${declaration(/function uniModeDemo\(/)}\nthis.result = uniModeDemo(${JSON.stringify(mode)});`, context);
+    return context.result;
+  };
+  const vars = (bus, train) => `let busDataMeta = ${JSON.stringify(bus)}, lastTrainDataStatus = ${JSON.stringify(train)};`;
+  assert.equal(demo(vars({ source: 'demo', backend: 'simulated' }, null), 'buses'), true);
+  assert.equal(demo(vars({ source: 'demo', backend: 'offline' }, null), 'buses'), true);
+  assert.equal(demo(vars({ source: 'live' }, null), 'buses'), false);
+  assert.equal(demo(vars(null, null), 'buses'), false, 'not searched yet');
+  assert.equal(demo(vars(null, { demo: true }), 'trains'), true);
+  assert.equal(demo(vars(null, { demo: false, liveTrains: 0 }), 'trains'), false, 'timetable trains are labelled in their own section, not demo');
+  assert.equal(demo(vars({ source: 'demo' }, { demo: true }), 'flights'), false);
+});
+
+// --- trains: a failed search is reported as failed, never as "no trains" ----
+
+// The page's real searchTrains(), with the DOM and the backend call stubbed.
+function loadTrainSearch(fetchLiveTrains, { extra = {}, trainRoutes = {}, from = 'SBC', to = 'PUNE' } = {}) {
+  const calls = [];
+  const elements = { trainFrom: { value: from, dataset: {} }, trainTo: { value: to, dataset: {} }, trainJourneyDate: { value: '2026-11-03' } };
+  const element = () => ({ value: '', dataset: {}, innerHTML: '', classList: { add() {}, remove() {} } });
+  const context = vm.createContext({
+    document: { getElementById: (id) => elements[id] || (elements[id] = element()) },
+    trainCityName: (code) => code, trainCityStations: (code) => [code], trainLivePairs: (f, t) => [[f[0], t[0]]],
+    getStationName: (code) => code, extractCodeFromStationLabel: (label) => label,
+    toLiveTrainShape: (t) => ({ trainNumber: t.number, classes: t.classes, source: 'reference' }),
+    abRouteHead() {}, showTrainLoadingState() {}, revealTrainFilters() {},
+    renderTrainResultsFiltered: () => calls.push('results'),
+    showNoTrainsState: () => calls.push('no-trains'),
+    showTrainErrorState: (f, t, message) => calls.push(`error: ${message}`),
+    fetchLiveTrains, trainRoutes,
+    ...extra
+  });
+  vm.runInContext([
+    /const TM_OPENED_AS_FILE = .+;/.exec(HTML)[0],
+    /const TM_FILE_REASON = .+;/.exec(HTML)[0],
+    'let lastTrainResults = [], trainSort = {}, lastTrainSearchMeta = null, lastTrainDataStatus = null;',
+    /let trainSearchFailed = false;/.exec(HTML)[0],
+    declaration(/function trainDataStatus\(/),
+    declaration(/async function searchTrains\(/),
+    'this.api = { searchTrains, state: () => ({ failed: trainSearchFailed, count: lastTrainResults.length, demo: !!(lastTrainDataStatus && lastTrainDataStatus.demo) }) };'
+  ].join('\n'), context);
+  return { api: context.api, calls };
+}
+
+test('trains: a failed search is marked failed and explained — opened as a file, it names the real reason', async () => {
+  const reason = /This page was opened as a file, so it can't use the TravelMate API\. Open http:\/\/localhost:3000\/ instead\./;
+  // A route with no bundled demo trains; the browser hides the 403 behind "Failed to fetch"
+  const asFile = loadTrainSearch(async () => { throw new TypeError('Failed to fetch'); }, { extra: { location: { protocol: 'file:' } } });
+  await asFile.api.searchTrains();
+  assert.deepEqual({ ...asFile.api.state() }, { failed: true, count: 0, demo: true });
+  assert.equal(asFile.calls.length, 1);
+  assert.match(asFile.calls[0], reason);
+  assert.doesNotMatch(asFile.calls[0], /Failed to fetch/);
+
+  const asHttp = loadTrainSearch(async () => { throw new Error('Too many train searches from this device right now.'); }, { extra: { location: { protocol: 'http:' } } });
+  await asHttp.api.searchTrains();
+  assert.deepEqual(asHttp.calls, ['error: Too many train searches from this device right now.'], 'over http the server\'s own reason is kept');
+  assert.equal(asHttp.api.state().failed, true);
+
+  // A source that failed is not "no trains" either
+  const down = loadTrainSearch(async () => ({ results: [], meta: { dataStatus: 'provider_unavailable' } }));
+  await down.api.searchTrains();
+  assert.equal(down.api.state().failed, true);
+  assert.match(down.calls[0], /^error: Train data is unavailable right now\./);
+
+  // A real answer with no trains is not a failure, and a new search clears one
+  let fail = true;
+  const retried = loadTrainSearch(async () => { if (fail) throw new TypeError('Failed to fetch'); return { results: [], meta: {} }; });
+  await retried.api.searchTrains();
+  fail = false;
+  await retried.api.searchTrains();
+  assert.deepEqual({ ...retried.api.state() }, { failed: false, count: 0, demo: false });
+  assert.deepEqual(retried.calls, ['error: Failed to fetch', 'no-trains']);
+});
+
+test('trains: opened as a file on a route with bundled trains, they are shown as demo data — not as a failure', async () => {
+  const trainRoutes = { 'SBC->KCG': [{ number: '10001', name: 'Sample Express', classes: [{ cls: 'SL', fare: 395 }] }] };
+  const { api, calls } = loadTrainSearch(async () => { throw new TypeError('Failed to fetch'); },
+    { extra: { location: { protocol: 'file:' } }, trainRoutes, from: 'SBC', to: 'KCG' });
+  await api.searchTrains();
+  assert.deepEqual({ ...api.state() }, { failed: false, count: 1, demo: true });
+  assert.deepEqual(calls, ['results']);
 });
 
 // --- opened as a file: every message names the real reason ---------------------
