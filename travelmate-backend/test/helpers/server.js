@@ -27,7 +27,9 @@ async function startServer({ env = {} } = {}) {
     // Live IRCTC requests off and a throwaway usage file, whatever .env says.
     env: {
       ...process.env, PORT: String(port), SERPAPI_KEY: '', RAPIDAPI_KEY: '', AMADEUS_CLIENT_ID: '', AMADEUS_CLIENT_SECRET: '',
-      TRAIN_API_REQUEST_BUDGET: '0', TRAIN_API_USAGE_FILE: path.join(os.tmpdir(), `travelmate-test-usage-${port}.json`), ...env
+      TRAIN_API_REQUEST_BUDGET: '0', TRAIN_API_USAGE_FILE: path.join(os.tmpdir(), `travelmate-test-usage-${port}.json`),
+      // Fixed test dates stay valid travel dates (see requestNormalizers.js).
+      NODE_ENV: 'test', TRAVELMATE_TODAY: '2026-10-20', ...env
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -45,6 +47,9 @@ async function startServer({ env = {} } = {}) {
 
   const baseUrl = `http://127.0.0.1:${port}`;
   return {
+    baseUrl,
+    // Everything server.js has printed so far (stdout and stderr).
+    output: () => output,
     async request(urlPath, init) {
       const res = await fetch(baseUrl + urlPath, init);
       const text = await res.text();

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { generateMockBuses } = require('../utils/mockBusGenerator');
-const { normalizeDateToISO } = require('../utils/requestNormalizers');
+const { checkTravelDate, travelDateMessage } = require('../utils/requestNormalizers');
 
 function normalizeCity(input) {
   if (!input || typeof input !== 'string') return null;
@@ -27,7 +27,8 @@ router.get('/search', (req, res, next) => {
   try {
     const from = normalizeCity(req.query.from);
     const to = normalizeCity(req.query.to);
-    const date = normalizeDateToISO(req.query.date);
+    const dateCheck = checkTravelDate(req.query.date);
+    const date = dateCheck.date;
 
     if (!from) {
       return res.status(400).json({ error: { message: 'A valid "from" city is required.', status: 400 } });
@@ -39,7 +40,7 @@ router.get('/search', (req, res, next) => {
       return res.status(400).json({ error: { message: 'Origin and destination cannot be the same city.', status: 400 } });
     }
     if (!date) {
-      return res.status(400).json({ error: { message: 'A valid "date" is required, as YYYY-MM-DD or DD-MM-YYYY.', status: 400 } });
+      return res.status(400).json({ error: { message: travelDateMessage(dateCheck), status: 400 } });
     }
 
     const results = generateMockBuses({ from, to, date });

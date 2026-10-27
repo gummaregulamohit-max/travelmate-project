@@ -10,6 +10,10 @@ const axios = require('axios');
 const express = require('express');
 
 const ROOT = path.join(__dirname, '..');
+// The fixed travel dates in these tests stay valid: "today" is pinned for
+// travel-date checks (see TRAVELMATE_TODAY in src/utils/requestNormalizers.js).
+process.env.TRAVELMATE_TODAY = '2026-10-20';
+process.env.NODE_ENV = 'test'; // TRAVELMATE_TODAY only applies in the test environment
 const fs = require('node:fs');
 const os = require('node:os');
 process.env.RAPIDAPI_KEY = 'fake-rapidapi-key-for-status-tests';

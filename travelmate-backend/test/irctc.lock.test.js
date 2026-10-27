@@ -141,6 +141,58 @@ test('a lock older than 30 seconds is removed even if its owner is unknown', asy
   assert.equal(savedUsage().requestsSent, 1);
 });
 
+// Windows refuses to create a file whose old copy is still being deleted
+// ("delete pending") with EPERM/EACCES, and a scanner holding it gives EBUSY.
+// fs.openSync is wrapped so only the lock file sees those errors.
+const realOpenSync = fs.openSync;
+function lockOpenFails(t, code, times = Infinity) {
+  let failures = 0;
+  t.mock.method(fs, 'openSync', (p, ...rest) => {
+    if (p === LOCK && failures < times) {
+      failures += 1;
+      throw Object.assign(new Error(`${code}: operation not permitted, open '${p}'`), { code });
+    }
+    return realOpenSync(p, ...rest);
+  });
+  return () => failures;
+}
+
+for (const code of ['EPERM', 'EACCES', 'EBUSY']) {
+  test(`a lock that is briefly unavailable (${code}) is waited for, not reported as an error`, (t) => {
+    const failures = lockOpenFails(t, code, 3);
+    irctc.reserveRequest();
+    assert.equal(failures(), 3);
+    assert.equal(savedUsage().requestsSent, 1, 'counted once');
+    assert.ok(!fs.existsSync(LOCK), 'no lock left behind');
+  });
+}
+
+test('a lock that stays unavailable (EPERM) ends as usage_locked: nothing sent, nothing counted', async (t) => {
+  lockOpenFails(t, 'EPERM');
+  process.env.TRAIN_API_LOCK_TIMEOUT_MS = '150';
+  respond = () => assert.fail('no request may be sent');
+  await assert.rejects(irctc.lookupTrain('14091'), (err) => {
+    assert.equal(err.reason, 'usage_locked');
+    assert.equal(err.publicMessage, irctc.REASON_MESSAGES.usage_locked);
+    return true;
+  });
+  assert.equal(calls.length, 0);
+  assert.ok(!fs.existsSync(USAGE_FILE), 'nothing counted');
+});
+
+test('any other error creating the lock is still raised, not waited out', (t) => {
+  lockOpenFails(t, 'ENOTDIR');
+  assert.throws(() => irctc.reserveRequest(), { code: 'ENOTDIR' });
+  assert.ok(!fs.existsSync(USAGE_FILE));
+});
+
+test('releasing the lock leaves no lock or renamed-aside file behind', () => {
+  for (let i = 0; i < 5; i++) irctc.reserveRequest();
+  assert.equal(savedUsage().requestsSent, 5);
+  const leftovers = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith(`${path.basename(LOCK)}`));
+  assert.deepEqual(leftovers, []);
+});
+
 // --- no retries -----------------------------------------------------------------
 
 for (const [name, answer, reason] of [

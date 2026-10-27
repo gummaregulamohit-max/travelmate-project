@@ -15,6 +15,10 @@ const express = require('express');
 const { startServer } = require('./helpers/server');
 
 const ROOT = path.join(__dirname, '..');
+// The fixed travel dates in these tests stay valid: "today" is pinned for
+// travel-date checks (see TRAVELMATE_TODAY in src/utils/requestNormalizers.js).
+process.env.TRAVELMATE_TODAY = '2026-10-20';
+process.env.NODE_ENV = 'test'; // TRAVELMATE_TODAY only applies in the test environment
 const {
   IRCTC_SEAT_CHECK_URL, SEAT_CHECK_STATUS, REASONS, withSeatCheck, availabilityReason
 } = require(path.join(ROOT, 'src/utils/seatAvailability'));
@@ -161,6 +165,7 @@ function declaration(startPattern) {
 function loadFrontend(extra = {}) {
   const context = vm.createContext({ setTimeout: () => {}, URLSearchParams, lastTrainSearchMeta: null, ...extra });
   vm.runInContext([
+    /const TM_API_BASE = .+;/.exec(HTML)[0],
     /const IRCTC_SEAT_NOTE = '[^']+';/.exec(HTML)[0],
     declaration(/function trainCardStationCodes\(/),
     declaration(/const SEAT_REFRESH_REASON_LABELS = \{/),
@@ -262,9 +267,9 @@ test('TravelMate: an unreadable response is "Check failed"', async () => {
 test('TravelMate: class pills carry their stations and date, and every class has a Refresh button', () => {
   const pill = /<div class="class-pill"[^>]*>[\s\S]*?<\/div>\s*`\)\.join/.exec(HTML);
   assert.ok(pill, 'class pill template not found');
-  assert.match(pill[0], /data-from="\$\{codes\.from\}" data-to="\$\{codes\.to\}" data-date="\$\{journeyDate \|\| ''\}"/);
+  assert.match(pill[0], /data-from="\$\{tmEsc\(codes\.from\)\}" data-to="\$\{tmEsc\(codes\.to\)\}" data-date="\$\{tmEsc\(journeyDate \|\| ''\)\}"/);
   // Only a live class shows a seat status; the button is outside that condition
-  assert.match(pill[0], /\$\{c\.live === true \? `<span class="avl-\$\{c\.tier\}">\$\{c\.status\}<\/span>` : ''\}\s*<button type="button" class="class-refresh-btn"/);
+  assert.match(pill[0], /\$\{c\.live === true \? `<span class="avl-\$\{tmClassPart\(c\.tier\)\}">\$\{tmEsc\(c\.status\)\}<\/span>` : ''\}\s*<button type="button" class="class-refresh-btn"/);
 });
 
 test('TravelMate: no "Check seats on IRCTC" link is left on the page', () => {
@@ -279,19 +284,37 @@ test('TravelMate: no "Unavailable" or "Check availability" wording is left', () 
 
 // --- Book Now: in-page passenger form, then IRCTC's official train search ----
 
-test('TravelMate: Book Now opens the in-page booking form, whose payment step hands off to the IRCTC train search the backend points to', () => {
+// The booking form has two steps (Passenger Details → Review Journey) and no
+// payment step of its own: TravelMate takes no payment and issues no ticket,
+// so the review step hands the rider to IRCTC, where both happen.
+test('TravelMate: Book Now opens the in-page booking form, whose review step hands off to the IRCTC train search the backend points to — no payment step, no ticket claims', () => {
   const url = new URL(IRCTC_SEAT_CHECK_URL);
   assert.equal(url.hostname, 'www.irctc.co.in');
   assert.equal(url.pathname, '/nget/train-search');
   // The card's Book Now is a button carrying its train, stations and date — not a link away
-  assert.match(HTML, /<button type="button" class="ab-select-btn tm-book-train" data-train="\$\{t\.trainNumber\}" data-from="\$\{codes\.from\}" data-to="\$\{codes\.to\}" data-date="\$\{journeyDate \|\| ''\}">Book Now<\/button>/);
+  assert.match(HTML, /<button type="button" class="ab-select-btn tm-book-train" data-train="\$\{tmEsc\(t\.trainNumber\)\}" data-from="\$\{tmEsc\(codes\.from\)\}" data-to="\$\{tmEsc\(codes\.to\)\}" data-date="\$\{tmEsc\(journeyDate \|\| ''\)\}">Book Now<\/button>/);
   assert.ok(!HTML.includes(`class="ab-select-btn" href="${IRCTC_SEAT_CHECK_URL}"`), 'no direct IRCTC link on the card');
   // Clicking it opens the passenger form
   assert.match(HTML, /const book = e\.target\.closest\('\.tm-book-train'\);\s*if \(book\) \{ e\.preventDefault\(\); bkOpenFromCard\(book\); return; \}/);
-  // The final (payment) step links to the same IRCTC URL
-  const payStep = /function bkStep3\(\) \{[\s\S]*?\n  \}/.exec(HTML);
-  assert.ok(payStep, 'payment step not found');
-  assert.ok(payStep[0].includes(`href="${IRCTC_SEAT_CHECK_URL}" target="_blank" rel="noopener">Pay on IRCTC ↗</a>`), 'Pay on IRCTC uses the same URL');
+  // Exactly two steps, and no payment step
+  assert.match(HTML, /const steps = \['Passenger Details', 'Review Journey'\];/);
+  assert.match(HTML, /const body = bk\.step === 1 \? bkStep1\(\) : bkStep2\(\);/);
+  assert.doesNotMatch(HTML, /function bkStep3\(/);
+  // The last (review) step hands off to the same IRCTC URL, and says what has — and hasn't — happened
+  const reviewStep = /function bkStep2\(\) \{[\s\S]*?\n  \}/.exec(HTML);
+  assert.ok(reviewStep, 'review step not found');
+  assert.ok(reviewStep[0].includes(`href="${IRCTC_SEAT_CHECK_URL}" target="_blank" rel="noopener">Continue on IRCTC ↗</a>`), 'the hand-off uses the same URL');
+  assert.match(reviewStep[0], /Nothing has been booked yet\. TravelMate doesn't take payments or issue tickets — you book and pay on IRCTC\./);
+  assert.match(reviewStep[0], /\$\{bkEsc\(bk\.train\.trainName\)\} \(\$\{bkEsc\(bk\.train\.trainNumber\)\}\)/, 'train details are escaped');
+  // The payment-mode choice is labelled as IRCTC's, not TravelMate's
+  const detailsStep = /function bkStep1\(\) \{[\s\S]*?\n  \}/.exec(HTML);
+  assert.ok(detailsStep, 'details step not found');
+  assert.match(detailsStep[0], /<h4>Payment Mode on IRCTC<\/h4>\s*<div class="bk-small"[^>]*>TravelMate doesn't take payments — you pay on IRCTC\./);
+  // Nothing in the train booking code claims a payment or a ticket
+  const booking = HTML.slice(HTML.indexOf('Train booking: Book Now'), HTML.indexOf('// ---- Wiring: class pills select'));
+  assert.ok(booking.length > 1000, 'train booking code not found');
+  assert.doesNotMatch(booking, /Ticket details will be sent|Booking confirmed|booking (is|has been) confirmed|ticket (is|has been) (booked|issued|confirmed|sent)|payment (successful|received|complete)|Ready to pay/i);
+  assert.ok(!booking.includes('Pay on IRCTC ↗'), 'the old payment-step button is gone');
 });
 
 test('TravelMate: each train card shows a visible note to verify seats on IRCTC', () => {

@@ -1,7 +1,11 @@
-require('dotenv').config();
+// .env is read from this folder, whatever directory the server is started
+// from. dotenv never overrides a variable already set in the environment, so
+// a rotated key in .env only takes effect if no old SERPAPI_KEY is set there.
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
 const path = require('path');
 
 const flightsRouter = require('./src/routes/flights.routes');
@@ -10,24 +14,50 @@ const locationsRouter = require('./src/routes/locations.routes');
 const busesRouter = require('./src/routes/buses.routes');
 const healthRouter = require('./src/routes/health.routes');
 const { warmUp: warmUpLocations } = require('./src/services/locations.service');
-const { errorHandler } = require('./src/middleware/errorHandler');
+const { errorHandler, redactUrl } = require('./src/middleware/errorHandler');
+const { apiOriginGuard, corsOptions } = require('./src/middleware/originPolicy');
+const { travelDateOverrideIgnored } = require('./src/utils/requestNormalizers');
 
 const app = express();
 
-app.use(cors());
 app.use(express.json());
 
 // Logs every incoming request with a timestamp — useful for confirming
 // whether a browser request actually reached this server at all (vs. a
 // client-side "Failed to fetch" that never got here in the first place).
+// Booking tokens and any key-like query values are redacted (redactUrl).
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${redactUrl(req.originalUrl)}`);
   next();
 });
 
-// Serves the existing TravelMate frontend (public/index.html) so the whole
-// app — UI + API — runs from a single server during development.
-app.use(express.static(path.join(__dirname, 'public')));
+// The API answers only the TravelMate app (same origin) and the listed
+// localhost origins — see src/middleware/originPolicy.js. Refused requests
+// get a 403 before any route, provider call or rate-limit count.
+app.use('/api', apiOriginGuard, cors(corsOptions));
+
+// The TravelMate app itself (TravelMate.html in the project root), served
+// here so its API requests are same-origin: open http://localhost:<PORT>/.
+// On the way out it gets a marker in <head> telling the page to call the API
+// on its own origin, whatever the host or PORT. Opened any other way (as a
+// file, or from another static server) the page has no marker and calls
+// http://localhost:3000 — see TM_API_BASE in TravelMate.html.
+const FRONTEND_FILE = path.join(__dirname, '..', 'TravelMate.html');
+const API_BASE_MARKER = '<meta name="travelmate-api-base" content="same-origin">';
+app.get(['/', '/TravelMate.html'], (req, res, next) => {
+  fs.readFile(FRONTEND_FILE, 'utf8', (err, html) => {
+    if (err) {
+      console.error('[app] Could not read TravelMate.html:', err.code);
+      return next(Object.assign(new Error('The TravelMate app could not be loaded.'), { status: 500 }));
+    }
+    // The first <head> is the document's own (a later one sits inside a script string).
+    res.type('html').send(html.replace('<head>', `<head>\n${API_BASE_MARKER}`));
+  });
+});
+
+// public/index.html — an older copy of the frontend, kept on disk for reference
+// — is deliberately not served: nothing links to it, and it predates the
+// escaping of provider data in the cards. /index.html is a plain 404.
 
 app.use('/api/flights', flightsRouter);
 app.use('/api/trains', trainsRouter);
@@ -43,8 +73,16 @@ app.use('/api', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`TravelMate backend listening on http://localhost:${PORT}`);
+// Loopback only by default: reachable from this computer, not from other
+// devices on the network. Set HOST (e.g. 0.0.0.0) only for a deployment, and
+// then set ALLOWED_ORIGINS to the site's own origin too.
+const HOST = (process.env.HOST || '').trim() || '127.0.0.1';
+const LOOPBACK = HOST === 'localhost' || HOST === '::1' || /^127\./.test(HOST);
+app.listen(PORT, HOST, () => {
+  console.log(`TravelMate backend listening on http://${HOST.includes(':') ? `[${HOST}]` : HOST}:${PORT}`);
+  console.log(`➡️  Open the TravelMate app at http://localhost:${PORT}/`);
+  if (travelDateOverrideIgnored()) console.warn('⚠️  TRAVELMATE_TODAY is set but ignored: it only applies when NODE_ENV=test. Travel dates are checked against the real date.');
+  if (!LOOPBACK) console.warn(`⚠️  HOST=${HOST}: the server is reachable from other devices on the network. Set ALLOWED_ORIGINS for the site that should use it.`);
   // Index the city / town / village directory up front so the first autocomplete
   // request doesn't pay for it.
   setImmediate(() => {

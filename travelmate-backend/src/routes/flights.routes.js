@@ -4,9 +4,21 @@ const router = express.Router();
 const { searchGoogleFlights, getGoogleFlightsBookingOptions } = require('../services/serpapi.service');
 const { mapGoogleFlightsResponse, mapBookingOptions } = require('../utils/transformSerpApiFlights');
 const { getCached, setCached } = require('../services/cache.service');
-const { normalizeDateToISO, extractIataCode } = require('../utils/requestNormalizers');
+const { checkTravelDate, travelDateMessage, travelClockMs, extractIataCode } = require('../utils/requestNormalizers');
+const { flightsLimiter } = require('../middleware/rateLimit');
 
 const CABIN_CLASSES = ['ECONOMY', 'PREMIUM_ECONOMY', 'BUSINESS', 'FIRST'];
+// Google Flights sells about a year ahead; a later date can only fail, and
+// every SerpApi request costs a credit, so it is refused before one is sent.
+const MAX_DAYS_AHEAD = 366;
+// SerpApi booking tokens are base64-style text.
+const BOOKING_TOKEN_PATTERN = /^[A-Za-z0-9+/=_.-]+$/;
+const MAX_AIRLINE_NAME_LENGTH = 80;
+
+// The last date a search may ask about, as YYYY-MM-DD (UTC).
+function latestSearchDate(nowMs = travelClockMs()) {
+  return new Date(nowMs + MAX_DAYS_AHEAD * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
 
 // A passenger count from the query string, clamped to Google Flights' limits.
 function passengerCount(raw, fallback, max) {
@@ -26,7 +38,8 @@ function unavailable(res, status, reason, message, meta) {
  * Input is normalized rather than strictly rejected where reasonably possible:
  * - origin/destination: accepts a bare IATA code ("BLR") or a combobox-style
  *   label with the code in trailing parens ("Bangalore, Kempegowda... (BLR)").
- * - departureDate/returnDate: accepts "YYYY-MM-DD" or "DD-MM-YYYY".
+ * - departureDate/returnDate: accepts "YYYY-MM-DD" or "DD-MM-YYYY"; a date
+ *   that isn't on the calendar, or is in the past, is a 400 (no SerpApi request).
  * - "date" is accepted as an alias for departureDate (older frontend builds).
  *
  * Every flight returned comes from SerpApi (Google Flights). When SerpApi
@@ -39,14 +52,20 @@ function unavailable(res, status, reason, message, meta) {
 function parseFlightSearch(query) {
   const origin = extractIataCode(query.origin);
   const destination = extractIataCode(query.destination);
-  const departureDate = normalizeDateToISO(query.departureDate || query.date);
-  const returnDate = query.returnDate ? normalizeDateToISO(query.returnDate) : null;
+  const departure = checkTravelDate(query.departureDate || query.date);
+  const ret = query.returnDate ? checkTravelDate(query.returnDate) : null;
+  const departureDate = departure.date;
+  const returnDate = ret ? ret.date : null;
 
   if (!origin) return { error: 'A valid 3-letter "origin" airport code is required (e.g. "BLR").' };
   if (!destination) return { error: 'A valid 3-letter "destination" airport code is required (e.g. "DFW").' };
   if (origin === destination) return { error: 'Origin and destination cannot be the same airport.' };
-  if (!departureDate) return { error: 'A valid "departureDate" is required, as YYYY-MM-DD or DD-MM-YYYY.' };
-  if (query.returnDate && !returnDate) return { error: 'A valid "returnDate" is required, as YYYY-MM-DD or DD-MM-YYYY.' };
+  if (!departureDate) return { error: travelDateMessage(departure, 'departureDate') };
+  if (ret && !returnDate) return { error: travelDateMessage(ret, 'returnDate') };
+  const latest = latestSearchDate();
+  if (departureDate > latest) return { error: `"departureDate" can be at most ${MAX_DAYS_AHEAD} days ahead (${latest}).` };
+  if (returnDate && returnDate < departureDate) return { error: '"returnDate" cannot be before "departureDate".' };
+  if (returnDate && returnDate > latest) return { error: `"returnDate" can be at most ${MAX_DAYS_AHEAD} days ahead (${latest}).` };
 
   const cabinKey = String(query.cabinClass || 'ECONOMY').toUpperCase().replace(/[\s-]+/g, '_');
   const cabinClass = CABIN_CLASSES.includes(cabinKey) ? cabinKey : 'ECONOMY';
@@ -92,7 +111,7 @@ async function liveSearch(search) {
   return payload;
 }
 
-router.get('/search', async (req, res, next) => {
+router.get('/search', flightsLimiter, async (req, res, next) => {
   try {
     const { search, error } = parseFlightSearch(req.query);
     if (error) return res.status(400).json({ error: { message: error, status: 400 } });
@@ -106,12 +125,12 @@ router.get('/search', async (req, res, next) => {
       res.json(await liveSearch(search));
     } catch (err) {
       // Bad key, rate limit, outage, unsupported airport, malformed response:
-      // say the search failed. err.details holds SerpApi's own reply, for
-      // server-side debugging only.
+      // say the search failed. SerpApi's own message and reply (err.details)
+      // are for server-side debugging only — never sent to the browser.
       console.warn('[flights] SerpApi call failed:', err.message);
       if (err.details) console.warn('[flights] SerpApi error details:', err.details);
       return unavailable(res, 502, 'provider_error',
-        `Live flight prices could not be retrieved right now (${err.message}). No flights are shown rather than guessed ones — please try again.`, search);
+        'Live flight prices could not be retrieved right now. No flights are shown rather than guessed ones — please try again.', search);
     }
   } catch (err) {
     next(err);
@@ -134,7 +153,7 @@ const legKey = (n) => String(n || '').replace(/[\s-]/g, '').toUpperCase();
  * (e.g. MakeMyTrip ₹27,005). Costs one SerpApi search, so the page only calls
  * it when the rider clicks Book Now; answers are cached for 5 minutes.
  */
-router.get('/booking-options', async (req, res, next) => {
+router.get('/booking-options', flightsLimiter, async (req, res, next) => {
   try {
     const { search, error } = parseFlightSearch(req.query);
     if (error) return res.status(400).json({ error: { message: error, status: 400 } });
@@ -148,7 +167,13 @@ router.get('/booking-options', async (req, res, next) => {
     if (bookingToken.length > 4096 || (!bookingToken && !legs.length)) {
       return res.status(400).json({ error: { message: 'A "token" from the flight search results, or the itinerary\'s "flights", is required.', status: 400 } });
     }
-    let airlines = String(req.query.airlines || '').split(',').map((a) => a.trim()).filter(Boolean).slice(0, 10);
+    if (bookingToken && !BOOKING_TOKEN_PATTERN.test(bookingToken)) {
+      return res.status(400).json({ error: { message: 'The "token" is not a valid booking token from the flight search results.', status: 400 } });
+    }
+    // Airline names only steer which offer counts as the airline's own; anything
+    // overlong or with control characters is dropped rather than passed on.
+    let airlines = String(req.query.airlines || '').split(',').map((a) => a.trim())
+      .filter((a) => a && a.length <= MAX_AIRLINE_NAME_LENGTH && !/[\u0000-\u001f\u007f]/.test(a)).slice(0, 10);
 
     if (!process.env.SERPAPI_KEY) {
       return fail(503, 'not_configured', 'Live booking options are not set up on this server (SERPAPI_KEY is missing).');
@@ -164,7 +189,8 @@ router.get('/booking-options', async (req, res, next) => {
           (!/^\d{2}:\d{2}$/.test(time) || f.departureTime === time));
       } catch (err) {
         console.warn('[flights] SerpApi search for booking options failed:', err.message);
-        return fail(502, 'provider_error', `Booking options could not be retrieved right now (${err.message}). Please try again.`);
+        if (err.details) console.warn('[flights] SerpApi error details:', err.details);
+        return fail(502, 'provider_error', 'Booking options could not be retrieved right now. Please try again.');
       }
       if (!found) return fail(404, 'not_found', 'That flight is no longer in the live results for this search, so its booking options are not available.');
       bookingToken = found.bookingToken;
@@ -182,7 +208,7 @@ router.get('/booking-options', async (req, res, next) => {
     } catch (err) {
       console.warn('[flights] SerpApi booking options failed:', err.message);
       if (err.details) console.warn('[flights] SerpApi error details:', err.details);
-      return fail(502, 'provider_error', `Booking options could not be retrieved right now (${err.message}). Please try again.`);
+      return fail(502, 'provider_error', 'Booking options could not be retrieved right now. Please try again.');
     }
 
     const payload = {
@@ -208,3 +234,4 @@ router.get('/booking-options', async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.latestSearchDate = latestSearchDate;

@@ -13,6 +13,10 @@ const axios = require('axios');
 const express = require('express');
 
 const ROOT = path.join(__dirname, '..');
+// The fixed travel dates in these tests stay valid: "today" is pinned for
+// travel-date checks (see TRAVELMATE_TODAY in src/utils/requestNormalizers.js).
+process.env.TRAVELMATE_TODAY = '2026-10-20';
+process.env.NODE_ENV = 'test'; // TRAVELMATE_TODAY only applies in the test environment
 const FAKE_KEY = 'fake-serpapi-key-for-booking-tests';
 process.env.SERPAPI_KEY = FAKE_KEY;
 
@@ -154,8 +158,23 @@ test('a SerpApi failure is a 502 with no options, and the key stays out of the a
   const { status, body, text } = await request('/booking-options?token=fixture-token-x&origin=BLR&destination=AMS&date=2026-10-22');
   assert.equal(status, 502);
   assert.equal(body.error.reason, 'provider_error');
+  assert.equal(body.error.message, 'Booking options could not be retrieved right now. Please try again.');
   assert.deepEqual(body.options, []);
   assert.equal(body.airlineOption, null);
+  assert.ok(!text.includes(FAKE_KEY));
+  assert.ok(!text.includes('Invalid API key'), 'SerpApi\'s own message stays on the server');
+});
+
+test('a SerpApi failure while finding the flight (no token) is a 502 with fixed text', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  t.mock.method(console, 'error', () => {});
+  respond = () => ({ status: 200, data: { error: 'Invalid API key.' } });
+  const { status, body, text } = await request('/booking-options?flights=6E1301&origin=BLR&destination=AMS&date=2026-11-03');
+  assert.equal(status, 502);
+  assert.equal(body.error.reason, 'provider_error');
+  assert.equal(body.error.message, 'Booking options could not be retrieved right now. Please try again.');
+  assert.deepEqual(body.options, []);
+  assert.ok(!text.includes('Invalid API key'));
   assert.ok(!text.includes(FAKE_KEY));
 });
 

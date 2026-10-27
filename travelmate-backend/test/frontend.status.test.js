@@ -34,7 +34,11 @@ function declaration(startPattern) {
 function load(extra = {}) {
   const context = vm.createContext({ URLSearchParams, AbortSignal, Error, ...extra });
   vm.runInContext([
+    /const TM_API_BASE = .+;/.exec(HTML)[0],
+    /const TM_OPENED_AS_FILE = .+;/.exec(HTML)[0],
+    /const TM_FILE_REASON = .+;/.exec(HTML)[0],
     /const escapeAttr = .+;/.exec(HTML)[0],
+    /const tmEsc = .+;/.exec(HTML)[0],
     /const busShortName = .+;/.exec(HTML)[0],
     declaration(/function dataStatusChip\(/),
     declaration(/const SEARCH_TIMEOUT_MS = \{/),
@@ -101,7 +105,7 @@ test('flights: no bundled sample flights exist to stand in for a failed search',
   assert.doesNotMatch(HTML, /flightRoutes/);
   const searchFlights = declaration(/async function searchFlights\(/);
   const onError = searchFlights.slice(searchFlights.indexOf('catch (err)'));
-  assert.match(onError, /flightSearchResults = \[\];[\s\S]*showFlightErrorState\(fromCode, toCode, err\.message\)/);
+  assert.match(onError, /flightSearchResults = \[\];[\s\S]*showFlightErrorState\(fromCode, toCode, TM_OPENED_AS_FILE \? TM_FILE_REASON : err\.message\)/);
   assert.doesNotMatch(onError, /renderFlightResults/);
 });
 
@@ -171,9 +175,9 @@ test('trains: no backend means "Demo data"', () => {
 test('timeouts: every backend search has one', () => {
   const { SEARCH_TIMEOUT_MS } = load();
   assert.deepEqual({ ...SEARCH_TIMEOUT_MS }, { flights: 30000, trains: 45000, buses: 8000 });
-  assert.match(HTML, /fetchWithTimeout\(`http:\/\/localhost:3000\/api\/flights\/search\?\$\{query\}`, SEARCH_TIMEOUT_MS\.flights, 'flight'\)/);
-  assert.match(HTML, /fetchWithTimeout\(`http:\/\/localhost:3000\/api\/trains\/search\?\$\{query\}`, SEARCH_TIMEOUT_MS\.trains, 'train'\)/);
-  assert.match(HTML, /fetchWithTimeout\(`http:\/\/localhost:3000\/api\/buses\/search\?\$\{query\}`, SEARCH_TIMEOUT_MS\.buses, 'bus'\)/);
+  assert.match(HTML, /fetchWithTimeout\(`\$\{TM_API_BASE\}\/api\/flights\/search\?\$\{query\}`, SEARCH_TIMEOUT_MS\.flights, 'flight'\)/);
+  assert.match(HTML, /fetchWithTimeout\(`\$\{TM_API_BASE\}\/api\/trains\/search\?\$\{query\}`, SEARCH_TIMEOUT_MS\.trains, 'train'\)/);
+  assert.match(HTML, /fetchWithTimeout\(`\$\{TM_API_BASE\}\/api\/buses\/search\?\$\{query\}`, SEARCH_TIMEOUT_MS\.buses, 'bus'\)/);
 });
 
 test('timeouts: a timed-out request becomes a clear error message', async () => {
@@ -237,4 +241,145 @@ test('buses: the status chip says demo data and why', () => {
 test('status chips escape their tooltip text', () => {
   const html = load().busDataStatusHtml({ source: 'demo', backend: '"><script>x</script>' });
   assert.doesNotMatch(html, /<script>/);
+});
+
+test('price insight: Google\'s price level is shown as text, never as markup', () => {
+  const html = load().priceInsightHtml(FLIGHTS, true, { priceInsights: { priceLevel: '<img src=x onerror=alert(1)>' } });
+  assert.doesNotMatch(html, /<img/);
+  assert.match(html, /<strong>&lt;img src=x onerror=alert\(1\)&gt;<\/strong>/);
+});
+
+// --- bus checkout: the demo end screen never reads as a real booking --------
+
+test('buses: the demo checkout\'s last step claims no ticket, booking, payment or cover', () => {
+  const context = vm.createContext({
+    busCo: {
+      ref: 'TMBDEMO123', email: 'rider@example.com', phone: '9876543210', assure: 'yes', protect: true, paidTotal: 1234,
+      date: '2026-11-20', bp: { time: '21:00', name: 'Majestic' }, dp: { time: '05:30', name: 'Guindy' },
+      pax: [{ name: 'Asha ', gender: 'F', age: '30' }], seats: [{ id: 'L4' }],
+      b: { fromName: 'Bengaluru', toName: 'Chennai', operatorName: 'KSRTC', busType: 'AC Sleeper', plate: '' }
+    },
+    busEsc: (s) => String(s), formatTime12hr: (t) => t, busShortDate: () => '', busPointDate: () => null,
+    busPrettyDate: () => '', busDurText: () => '', busRupee: (n) => `₹${n}`
+  });
+  vm.runInContext(`${declaration(/function busCoStep3\(/)}\nthis.api = { busCoStep3 };`, context);
+  const html = context.api.busCoStep3();
+  assert.match(html, /Demo checkout complete — no ticket issued/);
+  assert.match(html, /Demo reference <strong>TMBDEMO123<\/strong> · this is not a booking/);
+  assert.match(html, /Demo total \(not charged\)/);
+  // The TravelMate Assured option was removed from the bus checkout: no claim of it at all
+  assert.doesNotMatch(html, /TravelMate Assured/);
+  assert.match(html, /Travel Protection Plan selected \(demo\) — no cover was bought/);
+  for (const claim of [/Booking confirmed/i, /ticket sent/i, /Booking ID/, /Total paid/i, /rider@example\.com/, /9876543210/, /✓ TravelMate Assured/, /Plan added/]) {
+    assert.doesNotMatch(html, claim);
+  }
+});
+
+// --- flights: a failed search is reported as failed, never as "no results" ---
+
+// The page's real searchFlights(), with the DOM and the backend call stubbed.
+function loadFlightSearch(fetchLiveFlights, extra = {}) {
+  const calls = [];
+  const elements = { flightFrom: { value: 'BLR' }, flightTo: { value: 'DEL' }, flightDepartureDate: { value: '2026-11-22' } };
+  const element = () => ({ value: '', innerHTML: '', style: {}, classList: { add() {}, remove() {} } });
+  const context = vm.createContext({
+    document: { getElementById: (id) => elements[id] || (elements[id] = element()) },
+    flightAirports: [],
+    resetFlightSortTabs() {}, abRouteHead() {}, showFlightLoadingState() {}, resetFlightRangeFilters() {},
+    priceInsightHtml: () => '', renderFlightResults: () => calls.push('results'), revealFlightFilters() {},
+    showNoFlightsState: () => calls.push('no-flights'),
+    showFlightErrorState: (from, to, message) => calls.push(`error: ${message}`),
+    fetchLiveFlights,
+    ...extra
+  });
+  vm.runInContext([
+    /const TM_OPENED_AS_FILE = .+;/.exec(HTML)[0],
+    /const TM_FILE_REASON = .+;/.exec(HTML)[0],
+    "let flightSearchResults = [], flightSearchMeta = {}, flightFromLabel = '', flightToLabel = '';",
+    /let flightSearchFailed = false;/.exec(HTML)[0],
+    declaration(/async function searchFlights\(/),
+    'this.api = { searchFlights, state: () => ({ failed: flightSearchFailed, count: flightSearchResults.length }) };'
+  ].join('\n'), context);
+  return { api: context.api, calls };
+}
+
+test('flights: a failed search is marked failed and explained — never left looking like "no flights"', async () => {
+  // Opened as a file (the browser hides the 403 behind "Failed to fetch"), a provider error, a rate limit
+  for (const failure of [new TypeError('Failed to fetch'), new Error('Live flight prices could not be retrieved right now.'), new Error('Too many flight searches from this device right now.')]) {
+    const { api, calls } = loadFlightSearch(async () => { throw failure; });
+    await api.searchFlights();
+    assert.deepEqual({ ...api.state() }, { failed: true, count: 0 }, failure.message);
+    assert.deepEqual(calls, [`error: ${failure.message}`], 'the reason is shown, not "no flights"');
+  }
+  const empty = loadFlightSearch(async () => ({ results: [], meta: { source: 'live' } }));
+  await empty.api.searchFlights();
+  assert.deepEqual({ ...empty.api.state() }, { failed: false, count: 0 }, 'a live answer with no flights is not a failure');
+  assert.deepEqual(empty.calls, ['no-flights']);
+  let fail = true;
+  const retried = loadFlightSearch(async () => { if (fail) throw new Error('timeout'); return { results: [{ price: 5710 }], meta: { source: 'live' } }; });
+  await retried.api.searchFlights();
+  fail = false;
+  await retried.api.searchFlights();
+  assert.deepEqual({ ...retried.api.state() }, { failed: false, count: 1 }, 'a new search clears the failure');
+});
+
+// The page's real uniRenderSummary(), for the Flights card only.
+function renderSummaryCard({ status, failed = false, count = 0, fares = [] }) {
+  const summary = { innerHTML: '' };
+  const context = vm.createContext({
+    document: { getElementById: (id) => (id === 'uniSummary' ? summary : null) },
+    uniEnabledModes: () => ['flights'], uniModeFares: () => fares, uniModeFastest: () => null, uniModeCount: () => count
+  });
+  vm.runInContext([
+    /const UNI_ORDER = .+;/.exec(HTML)[0],
+    /const UNI_LABEL = .+;/.exec(HTML)[0],
+    `const uniStatus = { flights: ${JSON.stringify(status)} }; let uniTrip = 'domestic'; let flightSearchFailed = ${failed};`,
+    declaration(/function uniDurationText\(/),
+    declaration(/function uniRenderSummary\(/),
+    'uniRenderSummary();'
+  ].join('\n'), context);
+  return summary.innerHTML;
+}
+
+test('summary card: a failed flight search says "Search failed"; only a real empty answer says "No results"', () => {
+  const failedCard = renderSummaryCard({ status: 'done', failed: true });
+  assert.match(failedCard, /<span class="uni-sum-price">Search failed<\/span>/);
+  assert.match(failedCard, /see the reason under Flights/);
+  assert.doesNotMatch(failedCard, /No results/);
+  assert.match(failedCard, /onclick="uniJump\('flights'\)"/, 'it still opens the Flights section, where the reason is shown');
+  const emptyCard = renderSummaryCard({ status: 'done', failed: false });
+  assert.match(emptyCard, /<span class="uni-sum-price">No results<\/span>/);
+  assert.doesNotMatch(emptyCard, /Search failed/);
+  const resultsCard = renderSummaryCard({ status: 'done', count: 13, fares: [5710, 6400] });
+  assert.match(resultsCard, /from ₹5,710/);
+  assert.match(resultsCard, /13 options/);
+  assert.match(renderSummaryCard({ status: 'loading', failed: true }), /Searching…/, 'a search in progress is not shown as failed');
+});
+
+// --- opened as a file: every message names the real reason ---------------------
+
+test('opened as a file: flights, trains and buses say the page was opened as a file — not that the backend is down', async () => {
+  const asFile = { location: { protocol: 'file:' } };
+  const asHttp = { location: { protocol: 'http:' } };
+  const reason = /This page was opened as a file, so it can't use the TravelMate API\. Open http:\/\/localhost:3000\/ instead\./;
+
+  // The browser hides the 403 behind a generic network error
+  const flightsFile = loadFlightSearch(async () => { throw new TypeError('Failed to fetch'); }, asFile);
+  await flightsFile.api.searchFlights();
+  assert.equal(flightsFile.calls.length, 1);
+  assert.match(flightsFile.calls[0], reason);
+  assert.doesNotMatch(flightsFile.calls[0], /Failed to fetch/);
+  const flightsHttp = loadFlightSearch(async () => { throw new Error('Live flight prices could not be retrieved right now.'); }, asHttp);
+  await flightsHttp.api.searchFlights();
+  assert.deepEqual(flightsHttp.calls, ['error: Live flight prices could not be retrieved right now.'], 'over http the server\'s own reason is kept');
+
+  const file = load(asFile), http = load(asHttp);
+  assert.match(file.trainDataStatusHtml({ demo: true }), reason);
+  assert.match(file.trainDataStatusHtml({ demo: true }), /sample trains, not real search results/);
+  assert.doesNotMatch(file.trainDataStatusHtml({ demo: true }), /could not be reached/);
+  assert.match(http.trainDataStatusHtml({ demo: true }), /The TravelMate backend could not be reached\. These are sample trains/);
+  assert.match(file.busDataStatusHtml({ source: 'demo', backend: 'offline' }), reason);
+  assert.match(http.busDataStatusHtml({ source: 'demo', backend: 'offline' }), /The TravelMate backend could not be reached\./);
+  // Simulated buses over http keep their own explanation either way
+  assert.match(http.busDataStatusHtml({ source: 'demo', backend: 'simulated' }), /No live bus inventory provider is connected/);
 });

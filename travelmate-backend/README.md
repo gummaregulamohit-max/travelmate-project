@@ -2,8 +2,8 @@
 
 Active providers:
 
-- **Flights** — real flight data via [SerpApi's Google Flights engine](https://serpapi.com/google-flights-api),
-  with a dynamic mock generator as a fallback when the API is unavailable.
+- **Flights** — real flight data via [SerpApi's Google Flights engine](https://serpapi.com/google-flights-api).
+  There is no mock fallback: without SerpApi the search returns an error and no flights.
 - **Trains** — the Indian Railway IRCTC API on RapidAPI verifies timetable
   trains, with the public erail.in timetable as fallback. Fares are fare-chart
   prices; live seat availability is not offered.
@@ -15,8 +15,8 @@ Amadeus is not used (see Notes & limitations).
 ## How it fits together
 
 ```
-Browser (public/index.html, your TravelMate frontend)
-   │  fetch('/api/flights/search?origin=BLR&destination=DFW&departureDate=2026-09-23&...')
+Browser at http://localhost:3000/ (TravelMate.html from the project root, served by this server)
+   │  fetch('http://localhost:3000/api/flights/search?origin=BLR&destination=DFW&departureDate=2026-11-23&...')
    ▼
 Express server (server.js)
    │
@@ -64,11 +64,10 @@ lowest agent fare.
 npm install
 ```
 
-`.env` is already filled in with the SerpApi key you provided. **That key
-was pasted in plaintext in a chat conversation — treat it as potentially
-exposed and consider rotating it at https://serpapi.com/manage-api-key once
-you've confirmed everything works.** Never commit `.env` (it's already in
-`.gitignore`); `.env.example` has a placeholder instead.
+Copy `.env.example` to `.env` and fill in your own keys (`SERPAPI_KEY`, and
+optionally `RAPIDAPI_KEY` and the `TRAIN_API_*` settings — see the comments in
+`.env.example`). Never commit `.env` (it's already in `.gitignore`), and keep
+keys out of the frontend: only this server reads them.
 
 Run it:
 
@@ -76,15 +75,68 @@ Run it:
 npm start
 ```
 
-Open http://localhost:3000 — your TravelMate frontend, served by this same
-server, wired up to live Google Flights search.
+Then open **http://localhost:3000/** in your browser. The server serves the
+app (`TravelMate.html` from the project root) there, and the app calls the
+API on the same address.
+
+- **Don't open `TravelMate.html` as a file** (double-clicking it, `file://`):
+  the browser then sends `Origin: null`, which the API refuses, so live
+  searches can't work.
+- The server listens on `127.0.0.1` only, so other devices on your network
+  can't reach it. For a deployment, set `HOST` (e.g. `0.0.0.0`) **and**
+  `ALLOWED_ORIGINS` to the site's own origin — see `.env.example`.
+- The API answers only `http://localhost:<PORT>` and `http://127.0.0.1:<PORT>`
+  by default; requests from any other page get a 403 before they reach a route
+  or spend an API credit. If you serve the HTML some other way (e.g. a live
+  server on port 5500), add that exact origin to `ALLOWED_ORIGINS`.
+- `public/index.html` is an older copy of the frontend, kept on disk for
+  reference only. The server no longer serves it (`/index.html` is a 404); the
+  only page it serves is `TravelMate.html`, at `/` and `/TravelMate.html`.
+
+Travel dates must be real calendar dates, and not in the past: searches for a
+date before yesterday (one day of slack for time zones) are a 400, so they
+never reach SerpApi or IRCTC.
 
 Run the tests (they start the server with every API key blanked, so they make
-no SerpApi or RapidAPI calls):
+no SerpApi or RapidAPI calls, and set `NODE_ENV=test` with `TRAVELMATE_TODAY`
+to pin "today" so their fixed dates stay valid). `TRAVELMATE_TODAY` only
+applies when `NODE_ENV=test`; anywhere else it is ignored and the server warns
+at startup, so it can never move the date check of a real deployment:
 
 ```bash
 npm test
 ```
+
+## Deploying beyond this computer
+
+The defaults are for local use. Before other people can reach the server:
+
+- **Network and origins** — set `HOST` (e.g. `0.0.0.0`) and set
+  `ALLOWED_ORIGINS` to the site's own origin (see `.env.example`).
+- **Behind a reverse proxy** (nginx, a load balancer, a hosting platform's
+  router), every request reaches the server from the proxy's address. The rate
+  limits (`src/middleware/rateLimit.js`) count requests per `req.ip`, so all
+  users would share one allowance. Tell Express which proxy to trust by adding
+  one line to `server.js`, right after `const app = express();`:
+
+  ```js
+  app.set('trust proxy', 1); // one proxy in front; or its address, e.g. 'loopback' for nginx on the same machine
+  ```
+
+  Never use `true`: Express would then believe any `X-Forwarded-For` header a
+  client sends, and a client could choose its own rate-limit bucket.
+- **More than one instance** — each process keeps its own rate-limit counts in
+  memory, so N instances allow N times the configured limit, and the IRCTC
+  request count (`TRAIN_API_USAGE_FILE`) is shared only by processes on the
+  same machine. Run a single instance, divide the per-minute limits by the
+  number of instances, or enforce limits at the proxy / API gateway. (A shared
+  store such as Redis would need a new dependency.)
+- **Per-client limits don't cap total spend**: many clients, or one client with
+  many addresses, each get their own allowance (at most 10,000 clients are
+  remembered per limiter, so memory stays bounded). Cap total SerpApi usage in
+  your SerpApi account or at the gateway; `TRAIN_API_REQUEST_BUDGET` already
+  caps total IRCTC requests.
+- Leave `TRAVELMATE_TODAY` unset (outside `NODE_ENV=test` it is ignored anyway).
 
 ## API
 
@@ -96,7 +148,7 @@ uses no SerpApi / RapidAPI quota, and is sent with `Cache-Control: no-store`.
 ```json
 { "status": "ok", "version": "1.0.0", "uptimeSeconds": 42, "timestamp": "2026-10-16T08:00:00.000Z",
   "providers": {
-    "flights": { "provider": "SerpApi (Google Flights)", "configured": true, "fallback": "mock" },
+    "flights": { "provider": "SerpApi (Google Flights)", "configured": true, "fallback": null },
     "trains":  { "provider": "Indian Railway IRCTC (RapidAPI)", "configured": true, "fallback": "erail.in timetable" },
     "buses":   { "provider": "simulated", "configured": true, "fallback": null } } }
 ```
@@ -204,9 +256,10 @@ India is `domestic` (flights, trains, buses); either one abroad is
 }
 ```
 
-**Failure** — falls back to mock data (see above) rather than erroring the
-whole search, unless the fallback itself is impossible (it never is, since
-the mock generator handles any IATA pair).
+**Failure** — no flights, never generated ones: 503 `not_configured` without
+`SERPAPI_KEY`, 502 `provider_error` when SerpApi fails (see above). The error
+message sent to the browser is fixed text; SerpApi's own message and reply are
+logged on the server only.
 
 ## ⚠️ Important: verify the SerpApi field mapping against a real response
 
@@ -232,14 +285,13 @@ Before relying on this in production:
   currently split apart. `returnDate` is passed through to SerpApi (sets
   `type=1`), but the resulting cards may show combined/incorrect duration.
   Stick to one-way searches until this is extended.
-- **Any origin/destination works** even without SerpApi, via
-  `mockFlightGenerator.js` (see the previous iteration's notes below) —
-  classifies routes by country/continent using `src/data/airports.json` and
-  picks realistic airlines from `src/data/carriers.js`, filtered so
-  budget/short-haul carriers never appear on intercontinental routes.
-- **Caching**: identical searches (live or mock) are cached in-memory for 5
-  minutes. Restarting the server clears it — useful for conserving SerpApi
-  quota during development.
+- **No mock flights.** `src/utils/mockFlightGenerator.js` is still in the
+  repo but no route uses it; flight results only ever come from SerpApi.
+- **Caching**: identical live searches are cached in-memory for 5 minutes.
+  Restarting the server clears it — useful for conserving SerpApi quota
+  during development.
+- **Request logs** print each request's method and URL, with booking tokens
+  and any key-like query values replaced by `[redacted]`.
 - **Amadeus integration** (`src/services/amadeus.service.js`,
   `src/utils/transformFlightOffers.js`) is still in the repo but no longer
   called — SerpApi is now the active provider. Swap `flights.routes.js` back

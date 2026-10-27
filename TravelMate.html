@@ -2787,22 +2787,6 @@
   .bus-co-gender button.on { background: var(--ab-teal); color: #fff; font-weight: 600; }
   .bus-co-gender button:disabled { color: #c3ccd0; cursor: not-allowed; }
   .bus-co-gender.err { border-color: #e74c3c; box-shadow: 0 0 0 1px #e74c3c; }
-  .bus-co-assure { background: linear-gradient(180deg, #f2f8fb, #fff 45%); }
-  .bus-co-assure.err { border-color: #e74c3c; box-shadow: 0 0 0 1px #e74c3c; }
-  .bus-co-assure-head { text-align: center; }
-  .bus-co-assure-head .ab-assured { font-size: 0.78rem; padding: 4px 12px 4px 9px; }
-  .bus-co-assure-head p { margin: 8px 0 14px; color: #33444b; }
-  .bus-co-benefits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
-  .bus-co-benefits div { text-align: center; display: flex; flex-direction: column; gap: 2px; padding: 8px; }
-  .bus-co-benefits b { font-size: 1.5rem; color: var(--ab-teal); font-weight: 800; }
-  .bus-co-benefits strong { font-size: 0.84rem; color: #1f2d33; }
-  .bus-co-benefits span { font-size: 0.72rem; color: var(--ab-muted); }
-  .bus-co-benefits em { font-style: normal; font-size: 0.78rem; color: #2f6fd6; font-weight: 600; margin-top: 6px; }
-  .bus-co-opt { display: flex; align-items: center; gap: 10px; border: 1px solid #dde3e6; border-radius: 8px; padding: 11px 12px; margin-top: 10px; cursor: pointer; position: relative; font-size: 0.86rem; color: #1f2d33; }
-  .bus-co-opt input { accent-color: var(--ab-red); }
-  .bus-co-opt small { display: block; color: var(--ab-muted); font-size: 0.72rem; }
-  .bus-co-opt:has(input:checked) { border-color: var(--ab-teal); background: #f2f8fb; }
-  .bus-co-pop { position: absolute; right: 10px; top: -9px; background: #2f6fd6; color: #fff; font-style: normal; font-size: 0.66rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
   .bus-co-protect { display: flex; align-items: center; gap: 12px; cursor: pointer; }
   .bus-co-protect > span:nth-child(2) { flex: 1; }
   .bus-co-protect strong { display: block; color: #1f2d33; }
@@ -2837,10 +2821,6 @@
     .bus-co-route .bus-co-dur { grid-column: 1 / -1; grid-row: 2; }
     .bus-co-pax { grid-template-columns: 64px minmax(0, 1fr) 64px; }
     .bus-co-gender { grid-column: 2 / -1; justify-self: start; }
-    .bus-co-benefits { grid-template-columns: 1fr; gap: 4px; }
-    .bus-co-benefits div { display: grid; grid-template-columns: 58px 1fr; text-align: left; padding: 6px 0; gap: 0 10px; }
-    .bus-co-benefits b { grid-row: span 3; font-size: 1.25rem; align-self: center; }
-    .bus-co-benefits em { margin-top: 2px; }
     .bus-co-billing, .bus-co-paygrid { grid-template-columns: 1fr; }
     .bus-co-bus { margin-left: -18px; margin-right: -18px; }
   }
@@ -3429,6 +3409,17 @@
 </div>
 
 <script>
+  // Where the API lives. When the TravelMate backend serves this page it adds a
+  // "travelmate-api-base" meta tag (content "same-origin") to <head>, so the page
+  // then calls the API on its own origin — whatever the host, PORT or proxy.
+  // Opened any other way (as a file, or from another static server listed in
+  // ALLOWED_ORIGINS) it calls the local backend, as before.
+  const TM_API_BASE = (typeof document !== 'undefined' && typeof location !== 'undefined' && /^https?:$/.test(location.protocol) && document.querySelector('meta[name="travelmate-api-base"][content="same-origin"]')) ? location.origin : 'http://localhost:3000';
+  // Opened straight from disk, the page's API requests carry "Origin: null",
+  // which the backend refuses on purpose; the browser only reports a network
+  // error. The messages below then name the real reason instead.
+  const TM_OPENED_AS_FILE = typeof location !== 'undefined' && location.protocol === 'file:';
+  const TM_FILE_REASON = 'This page was opened as a file, so it can\'t use the TravelMate API. Open http://localhost:3000/ instead.';
   let adultCount = 1, childCount = 0, infantCount = 0;
 
   const travelModes = ['flights', 'trains', 'buses'];
@@ -3534,6 +3525,8 @@
       let main, sub, time = '', off = false;
       if (status === 'loading') { main = 'Searching…'; sub = ''; }
       else if (status === 'unavailable') { main = 'Not available'; sub = uniTrip === 'international' && mode !== 'flights' ? 'on international trips' : 'on this route'; off = true; }
+      // A failed flight search is not "no flights" — the reason is shown under Flights
+      else if (mode === 'flights' && flightSearchFailed) { main = 'Search failed'; sub = 'see the reason under Flights'; }
       else if (!count) { main = 'No results'; sub = 'for this route and date'; }
       else {
         main = price != null ? `from ₹${price.toLocaleString('en-IN')}` : 'Fare on request';
@@ -3669,7 +3662,7 @@
   async function uniEnrichSelection(input, place) {
     try {
       const query = new URLSearchParams({ q: place.name, limit: '5' });
-      const res = await fetch(`http://localhost:3000/api/locations/search?${query}`, { signal: AbortSignal.timeout(2500) });
+      const res = await fetch(`${TM_API_BASE}/api/locations/search?${query}`, { signal: AbortSignal.timeout(2500) });
       if (!res.ok) return;
       const country = place.country || 'India';
       const loc = ((await res.json()).results || []).find(r => r.name.toLowerCase() === place.name.toLowerCase() && r.country === country);
@@ -3781,7 +3774,7 @@
   async function uniBackendTrip(from, to) {
     try {
       const query = new URLSearchParams({ from, to }).toString();
-      const res = await fetch(`http://localhost:3000/api/locations/trip-type?${query}`, { signal: AbortSignal.timeout(2500) });
+      const res = await fetch(`${TM_API_BASE}/api/locations/trip-type?${query}`, { signal: AbortSignal.timeout(2500) });
       return res.ok ? await res.json() : null;
     } catch (e) {
       return null;
@@ -4245,6 +4238,13 @@
   const IRCTC_SEAT_NOTE = 'TravelMate does not show live seat availability — verify seats on IRCTC before booking.';
 
   const escapeAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Escapes any value for HTML text or a quoted attribute; null / undefined
+  // become ''. Used for every provider-supplied value (train names, stations,
+  // airlines, airports, durations...) put into the train and flight cards —
+  // that text comes from erail.in, IRCTC and SerpApi, never from TravelMate.
+  const tmEsc = (s) => (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // A CSS class fragment from provider text: lower-case letters, digits and dashes only.
+  const tmClassPart = (s) => String(s == null ? '' : s).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
   // The station codes a class pill's live lookup should use: the train's own
   // boarding / alighting stations ("Yesvantpur Junction (YPR)" -> "YPR"), not
@@ -4260,7 +4260,7 @@
   }
 
   function trainTypeBadgeClass(trainType) {
-    return 'train-type-' + (trainType || 'express').toLowerCase().replace(/\s+/g, '-');
+    return 'train-type-' + (tmClassPart(trainType) || 'express');
   }
 
   // Mon..Sun letters/keys, matching the "M T W T F S S" order IRCTC-style
@@ -4345,18 +4345,18 @@
         <div class="ab-card-top">
           <div class="ab-badges">
             ${opts.tag ? `<span class="result-tag ${opts.tagKind || ''}">${opts.tag}</span>` : ''}
-            ${t.trainType ? `<span class="train-type-badge ${trainTypeBadgeClass(t.trainType)}">${t.trainType}</span>` : ''}
+            ${t.trainType ? `<span class="train-type-badge ${trainTypeBadgeClass(t.trainType)}">${tmEsc(t.trainType)}</span>` : ''}
             ${trainSourceTag(t.source)}
           </div>
           <div class="ab-price">
-            <div class="ab-from">From <strong>₹${Number(cheapest.fare).toLocaleString('en-IN')}</strong></div>
-            <div class="ab-price-note">${cheapest.cls} onwards</div>
+            <div class="ab-from">From <strong>₹${tmEsc(Number(cheapest.fare).toLocaleString('en-IN'))}</strong></div>
+            <div class="ab-price-note">${tmEsc(cheapest.cls)} onwards</div>
           </div>
         </div>
         <div class="ab-card-mid">
           <div class="ab-op">
-            <div class="ab-op-name">${t.trainName}</div>
-            <div class="ab-op-type">#${t.trainNumber}</div>
+            <div class="ab-op-name">${tmEsc(t.trainName)}</div>
+            <div class="ab-op-type">#${tmEsc(t.trainNumber)}</div>
             <div class="runs-on">
               <span class="runs-on-label">Runs On:</span>
               ${WEEKDAY_LETTERS.map((l, i) => `<span class="run-day ${runningDays[i] ? 'active' : 'inactive'}">${l}</span>`).join('')}
@@ -4364,28 +4364,28 @@
           </div>
           <div class="ab-timeline">
             <div class="ab-t">
-              <strong>${formatTime12hr(t.departureTime)}</strong>
+              <strong>${tmEsc(formatTime12hr(t.departureTime))}</strong>
               ${depDateObj ? `<span>${formatDayDate(depDateObj)}</span>` : ''}
-              <span>${stations.from || 'Dep'}</span>
+              <span>${tmEsc(stations.from || 'Dep')}</span>
             </div>
-            <div class="ab-dur"><span>${t.duration}</span></div>
+            <div class="ab-dur"><span>${tmEsc(t.duration)}</span></div>
             <div class="ab-t ab-t-end">
-              <strong>${formatTime12hr(t.arrivalTime)}</strong>
+              <strong>${tmEsc(formatTime12hr(t.arrivalTime))}</strong>
               ${arrDateObj ? `<span>${formatDayDate(arrDateObj)}</span>` : ''}
-              <span>${stations.to || 'Arr'}</span>
+              <span>${tmEsc(stations.to || 'Arr')}</span>
             </div>
           </div>
           <div class="ab-cta">
-            <button type="button" class="ab-select-btn tm-book-train" data-train="${t.trainNumber}" data-from="${codes.from}" data-to="${codes.to}" data-date="${journeyDate || ''}">Book Now</button>
-            <button type="button" class="schedule-link" data-train="${t.trainNumber}">Train Schedule</button>
+            <button type="button" class="ab-select-btn tm-book-train" data-train="${tmEsc(t.trainNumber)}" data-from="${tmEsc(codes.from)}" data-to="${tmEsc(codes.to)}" data-date="${tmEsc(journeyDate || '')}">Book Now</button>
+            <button type="button" class="schedule-link" data-train="${tmEsc(t.trainNumber)}">Train Schedule</button>
           </div>
         </div>
         <div class="class-list">
           ${t.classes.map(c => `
-            <div class="class-pill" data-train="${t.trainNumber}" data-class="${c.cls}" data-from="${codes.from}" data-to="${codes.to}" data-date="${journeyDate || ''}">
-              <div class="class-pill-label">${c.cls}</div>
-              <span class="fare">₹${c.fare}${c.live === true ? '' : ' (est.)'}</span>
-              ${c.live === true ? `<span class="avl-${c.tier}">${c.status}</span>` : ''}
+            <div class="class-pill" data-train="${tmEsc(t.trainNumber)}" data-class="${tmEsc(c.cls)}" data-from="${tmEsc(codes.from)}" data-to="${tmEsc(codes.to)}" data-date="${tmEsc(journeyDate || '')}">
+              <div class="class-pill-label">${tmEsc(c.cls)}</div>
+              <span class="fare">₹${tmEsc(c.fare)}${c.live === true ? '' : ' (est.)'}</span>
+              ${c.live === true ? `<span class="avl-${tmClassPart(c.tier)}">${tmEsc(c.status)}</span>` : ''}
               <button type="button" class="class-refresh-btn" title="Refresh live fare &amp; availability">⟳ Refresh</button>
             </div>
           `).join('')}
@@ -4557,7 +4557,7 @@
     };
     if (!verify) params.verify = '0';
     const query = new URLSearchParams(params).toString();
-    const response = await fetchWithTimeout(`http://localhost:3000/api/trains/search?${query}`, SEARCH_TIMEOUT_MS.trains, 'train');
+    const response = await fetchWithTimeout(`${TM_API_BASE}/api/trains/search?${query}`, SEARCH_TIMEOUT_MS.trains, 'train');
     const body = await response.json().catch(() => null);
 
     if (!response.ok) {
@@ -4608,7 +4608,7 @@
 
   function trainDataStatusHtml(st) {
     if (!st) return '';
-    if (st.demo) return dataStatusChip('demo', 'Demo data', 'The TravelMate backend could not be reached, so these are sample trains, not real search results');
+    if (st.demo) return dataStatusChip('demo', 'Demo data', `${TM_OPENED_AS_FILE ? TM_FILE_REASON : 'The TravelMate backend could not be reached.'} These are sample trains, not real search results`);
     let html = '';
     if (st.liveTrains) html += dataStatusChip('live', `IRCTC-verified · ${st.liveTrains}`, 'Timings and running days of these trains were confirmed with IRCTC (RapidAPI) for this search; fares are fare-chart prices');
     if (st.cachedTrains) html += dataStatusChip('cached', `IRCTC data (cached) · ${st.cachedTrains}`, 'Timings confirmed by IRCTC earlier and served from cache — not re-checked for this search; fares are fare-chart prices');
@@ -5303,7 +5303,7 @@
     let backend = 'offline';
     try {
       const query = new URLSearchParams({ from: busShortName(from), to: busShortName(to), date }).toString();
-      const response = await fetchWithTimeout(`http://localhost:3000/api/buses/search?${query}`, SEARCH_TIMEOUT_MS.buses, 'bus');
+      const response = await fetchWithTimeout(`${TM_API_BASE}/api/buses/search?${query}`, SEARCH_TIMEOUT_MS.buses, 'bus');
       const body = await response.json().catch(() => null);
       if (response.ok && body && body.meta && body.meta.source) backend = body.meta.source;
     } catch (err) {
@@ -5315,7 +5315,7 @@
   function busDataStatusHtml(meta) {
     if (!meta) return '';
     const why = meta.backend === 'offline'
-      ? 'The TravelMate backend could not be reached.'
+      ? (TM_OPENED_AS_FILE ? TM_FILE_REASON : 'The TravelMate backend could not be reached.')
       : 'No live bus inventory provider is connected (backend reports "' + meta.backend + '").';
     return dataStatusChip('demo', 'Demo data', `${why} Bus schedules, fares and seats are sample data, not live inventory.`);
   }
@@ -6198,11 +6198,10 @@
     const fromStop = busFindStopByName(busSearchCtx.from) || {};
     busCo = {
       b, seats, bp, dp, date: busSearchCtx.date, step: 1, base,
-      assurePrice: Math.max(49, Math.round(base * 0.12)),
       pax: seats.map(x => ({ name: '', age: '', gender: x.status === 'ladies' ? 'F' : x.status === 'gents' ? 'M' : '' })),
       phone: s && s.phone ? String(s.phone).replace(/\D/g, '').slice(-10) : '',
       email: (s && s.email) || '',
-      assure: null, protect: false,
+      protect: false,
       billing: { address: bp.address || bp.name, city: b.fromName, state: BUS_STATES.includes(fromStop.state) ? fromStop.state : '', pin: '' },
       billingEdit: false, pay: 'upi', errors: {}, ref: null
     };
@@ -6220,9 +6219,8 @@
   function busCoFare() {
     const c = busCo, n = c.seats.length;
     const gst = Math.round(c.base * 0.05);
-    const assure = c.assure === 'yes' ? c.assurePrice : 0;
     const protect = c.protect ? BUS_PROTECT_FEE * n : 0;
-    return { n, base: c.base, gst, assure, protect, total: c.base + gst + assure + protect };
+    return { n, base: c.base, gst, protect, total: c.base + gst + protect };
   }
 
   function busCoRender(keepScroll) {
@@ -6287,7 +6285,6 @@
   function busCoSet(key, val) {
     busCo[key] = val;
     delete busCo.errors[key];
-    if (key === 'assure') document.getElementById('busCoAssure').classList.remove('err');
     busCoRenderSide();
   }
 
@@ -6305,7 +6302,7 @@
             <div class="bk-phone"><span>+91</span><input class="bk-in${err('phone')}" inputmode="numeric" maxlength="10" placeholder="10-digit mobile" value="${busEsc(c.phone)}" oninput="this.value=this.value.replace(/\\D/g,'');busCo.phone=this.value" autocomplete="tel-national"></div>
             ${c.errors.phone ? `<em class="bus-co-err">${c.errors.phone}</em>` : ''}
           </label>
-          <label class="bus-co-field"><span>Email ID</span>
+          <label class="bus-co-field"><span>Email ID <small style="font-weight:400;color:var(--ab-muted)">(optional)</small></span>
             <input class="bk-in${err('email')}" type="email" placeholder="you@example.com" value="${busEsc(c.email)}" oninput="busCo.email=this.value.trim()" autocomplete="email">
             ${c.errors.email ? `<em class="bus-co-err">${c.errors.email}</em>` : ''}
           </label>
@@ -6315,17 +6312,6 @@
       <div class="bk-card">
         <h4>Passenger Details <small>Fill in passenger details for each seat</small></h4>
         ${c.seats.map(busCoPaxRow).join('')}
-      </div>
-
-      <div class="bk-card bus-co-assure${err('assure')}" id="busCoAssure">
-        <div class="bus-co-assure-head"><span class="ab-assured">${BUS_ICONS.shield} TravelMate Assured</span><p>Secure your trip only at <strong>${busRupee(c.assurePrice)}</strong></p></div>
-        <div class="bus-co-benefits">
-          <div><b>₹0</b><strong>Zero cancellation charges</strong><span>if cancelled by you</span><em>${busRupee(c.base)} · 100% refund</em></div>
-          <div><b>1.5x</b><strong>Refund</strong><span>if cancelled by operator</span><em>${busRupee(Math.round(c.base * 1.5))} · 1.5x refund</em></div>
-          <div><b>100%</b><strong>Money-back guarantee</strong><span>for delays or quality issues</span><em>${busRupee(c.base)} · 100% refund</em></div>
-        </div>
-        <label class="bus-co-opt"><input type="radio" name="busCoAssure" ${c.assure === 'yes' ? 'checked' : ''} onchange="busCoSet('assure','yes')"><span>Secure this booking only</span><i class="bus-co-pop">Most Popular</i></label>
-        <label class="bus-co-opt"><input type="radio" name="busCoAssure" ${c.assure === 'no' ? 'checked' : ''} onchange="busCoSet('assure','no')"><span>No, I don't want this<small>Standard cancellation charges apply — up to the full fare close to departure</small></span></label>
       </div>
 
       <div class="bk-card">
@@ -6366,7 +6352,6 @@
         <h5>Fare Details</h5>
         ${row('Base Fare', `Seat ${c.seats.map(s => s.id).join(', ')}`, busRupee(f.base))}
         ${row('GST', '5% on base fare', busRupee(f.gst))}
-        ${f.assure ? row('TravelMate Assured', 'Zero cancellation · 1.5x refund', busRupee(f.assure)) : ''}
         ${f.protect ? row('Travel Protection', `${busRupee(BUS_PROTECT_FEE)} × ${f.n}`, busRupee(f.protect)) : ''}
         ${row('Total Amount To Be Paid', '', busRupee(f.total), 'bk-fare-total')}
       </div>
@@ -6381,20 +6366,18 @@
   function busCoContinue() {
     const c = busCo, e = {};
     if (!/^[6-9]\d{9}$/.test(c.phone)) e.phone = 'Enter a valid 10-digit mobile number';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(c.email)) e.email = 'Enter a valid email address';
+    if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(c.email)) e.email = 'Enter a valid email address, or leave it blank';
     c.pax.forEach((p, i) => {
       if (!/^[A-Za-z][A-Za-z .'-]+$/.test(p.name.trim())) e['name' + i] = 1;
       const a = Number(p.age);
       if (!a || a < 1 || a > 110) e['age' + i] = 1;
       if (!p.gender) e['gender' + i] = 1;
     });
-    if (!c.assure) e.assure = 1;
     if (!c.billing.state) e.billing = 1;
     if (Object.keys(e).length) {
       const msgs = [];
       if (e.phone || e.email) msgs.push('Check your contact details');
       if (Object.keys(e).some(k => /^(name|age|gender)\d/.test(k))) msgs.push('Fill in name, age and gender for every passenger');
-      if (e.assure) msgs.push('Choose whether to secure this trip with TravelMate Assured');
       if (e.billing) msgs.push('Add the state in your billing address');
       e._form = msgs.join(' · ');
       c.errors = e;
@@ -6417,7 +6400,7 @@
     return `
       ${busCoTripCard()}
       <div class="bk-card">
-        <h4>Passengers <small>Ticket goes to +91 ${busEsc(c.phone)} · ${busEsc(c.email)}</small></h4>
+        <h4>Passengers <small>Ticket goes to +91 ${busEsc(c.phone)}${c.email ? ` · ${busEsc(c.email)}` : ''}</small></h4>
         <table class="bk-table"><thead><tr><th>Seat</th><th>Name</th><th>Age</th><th>Gender</th></tr></thead>
           <tbody>${c.pax.map((p, i) => `<tr><td>${c.seats[i].id}</td><td>${busEsc(p.name.trim())}</td><td>${busEsc(p.age)}</td><td>${g[p.gender]}</td></tr>`).join('')}</tbody></table>
         <div class="bk-links"><button type="button" class="bk-link" onclick="busCo.step=1;busCoRender()">✎ Edit details</button></div>
@@ -6444,13 +6427,16 @@
     busCoRender();
   }
 
+  // The end of the demo checkout. Buses are simulated (no bus booking
+  // provider), so nothing here may read as a real booking: no ticket is
+  // issued or sent, no payment is taken, and no add-on is bought.
   function busCoStep3() {
     const c = busCo, b = c.b;
     return `
       <div class="bk-card bus-co-ticket"><div class="ab-ticket">
         <div class="ab-ticket-ok">✓</div>
-        <h3>Booking confirmed</h3>
-        <p class="ab-muted">Booking ID <strong>${c.ref}</strong> · ticket sent to ${busEsc(c.email)} and +91 ${busEsc(c.phone)}</p>
+        <h3>Demo checkout complete — no ticket issued</h3>
+        <p class="ab-muted">Demo reference <strong>${c.ref}</strong> · this is not a booking. No seat was reserved with the operator and nothing was sent to your email or phone.</p>
         <div class="ab-ticket-route">
           <div><strong>${formatTime12hr(c.bp.time)}</strong><span>${busEsc(c.bp.name)}</span><small>${busEsc(b.fromName)} · ${busShortDate(busPointDate(c.bp))}</small></div>
           <div class="ab-ticket-mid">${busPrettyDate(c.date)}<i></i>${busDurText((c.dp.abs || 0) - (c.bp.abs || 0))}</div>
@@ -6459,10 +6445,9 @@
         <div class="ab-ticket-bus"><strong>${busEsc(b.operatorName)}</strong> · ${busEsc(b.busType)}${b.plate ? ` · <span class="ab-plate">${b.plate}</span>` : ''}</div>
         <table class="ab-ticket-pax"><thead><tr><th>Passenger</th><th>Age</th><th>Seat</th></tr></thead>
           <tbody>${c.pax.map((p, i) => `<tr><td>${busEsc(p.name.trim())} (${p.gender})</td><td>${busEsc(p.age)}</td><td>${c.seats[i].id}</td></tr>`).join('')}</tbody></table>
-        ${c.assure === 'yes' ? '<p class="bus-co-note">✓ TravelMate Assured — free cancellation, 1.5x refund if the operator cancels.</p>' : ''}
-        ${c.protect ? '<p class="bus-co-note">✓ Travel Protection Plan added for every passenger.</p>' : ''}
-        <div class="ab-ticket-total"><span>Total paid</span><strong>${busRupee(c.paidTotal)}</strong></div>
-        <p class="ab-muted ab-center">Demo booking — no payment was collected.</p>
+        ${c.protect ? '<p class="bus-co-note">Travel Protection Plan selected (demo) — no cover was bought.</p>' : ''}
+        <div class="ab-ticket-total"><span>Demo total (not charged)</span><strong>${busRupee(c.paidTotal)}</strong></div>
+        <p class="ab-muted ab-center">Demo only — no payment was collected and no ticket was issued. Book real buses with the operator.</p>
         <button type="button" class="ab-proceed" onclick="busCoClose()">Done</button>
       </div></div>`;
   }
@@ -6570,6 +6555,10 @@
   // The backend's meta for the current results: passengers, trip type,
   // retrievedAt, Google's price insights and the Google Flights link.
   let flightSearchMeta = {};
+  // Whether the last flight search failed (server unreachable, page opened as a
+  // file, quota / key / provider errors) rather than answering "no flights".
+  // Both leave flightSearchResults empty; the summary card says which.
+  let flightSearchFailed = false;
   let flightFromLabel = '';
   let flightToLabel = '';
 
@@ -6757,22 +6746,22 @@
         <div class="detail-seg-logo">${airlineLogoHtml(seg.airline, seg.flightNumber, seg.airlineLogo || seg.airline_logo, 36)}</div>
         <div class="detail-segment-dots"><div class="detail-dot"></div><div class="detail-dot-line"></div><div class="detail-dot"></div></div>
         <div class="detail-segment-main">
-          <div class="detail-point-time">${formatTime12hr(seg.departureTime)}${seg.departureTime && nextDayLabel(seg.departureTime) ? ` <span class="warn">${nextDayLabel(seg.departureTime)}</span>` : ''}</div>
-          <div class="detail-point-airport">${seg.departureAirportName || ''}${seg.departureAirport ? ` (${seg.departureAirport})` : ''}</div>
-          <div class="detail-travel-meta">Travel time: ${seg.duration || '—'}${overnightWarn}</div>
-          <div class="detail-flight-info">${flightInfo}</div>
-          <div class="detail-point-time">${formatTime12hr(seg.arrivalTime)}${seg.arrivalTime && nextDayLabel(seg.arrivalTime) ? ` <span class="warn">${nextDayLabel(seg.arrivalTime)}</span>` : ''}</div>
-          <div class="detail-point-airport">${seg.arrivalAirportName || ''}${seg.arrivalAirport ? ` (${seg.arrivalAirport})` : ''}</div>
+          <div class="detail-point-time">${tmEsc(formatTime12hr(seg.departureTime))}${seg.departureTime && nextDayLabel(seg.departureTime) ? ` <span class="warn">${tmEsc(nextDayLabel(seg.departureTime))}</span>` : ''}</div>
+          <div class="detail-point-airport">${tmEsc(seg.departureAirportName || '')}${seg.departureAirport ? ` (${tmEsc(seg.departureAirport)})` : ''}</div>
+          <div class="detail-travel-meta">Travel time: ${tmEsc(seg.duration || '—')}${overnightWarn}</div>
+          <div class="detail-flight-info">${tmEsc(flightInfo)}</div>
+          <div class="detail-point-time">${tmEsc(formatTime12hr(seg.arrivalTime))}${seg.arrivalTime && nextDayLabel(seg.arrivalTime) ? ` <span class="warn">${tmEsc(nextDayLabel(seg.arrivalTime))}</span>` : ''}</div>
+          <div class="detail-point-airport">${tmEsc(seg.arrivalAirportName || '')}${seg.arrivalAirport ? ` (${tmEsc(seg.arrivalAirport)})` : ''}</div>
         </div>
         <div class="detail-amenities">
-          ${amenityLines.map(line => `<div>${amenityIcon(line)} ${line}</div>`).join('')}
+          ${amenityLines.map(line => `<div>${amenityIcon(line)} ${tmEsc(line)}</div>`).join('')}
         </div>
       </div>
     `;
     if (seg.layoverAfter) {
       const isLong = seg.layoverAfter.durationMinutes && seg.layoverAfter.durationMinutes > 240;
       html += `<div class="detail-layover-row ${isLong ? 'warn' : ''}">
-        ${seg.layoverAfter.duration || ''} layover · ${seg.layoverAfter.airportName || ''}${seg.layoverAfter.airport ? ` (${seg.layoverAfter.airport})` : ''}
+        ${tmEsc(seg.layoverAfter.duration || '')} layover · ${tmEsc(seg.layoverAfter.airportName || '')}${seg.layoverAfter.airport ? ` (${tmEsc(seg.layoverAfter.airport)})` : ''}
         ${isLong ? ' · Long layover' : ''}
       </div>`;
     }
@@ -6781,14 +6770,14 @@
 
   function renderFlightDetailContent(f) {
     const emissionsHtml = f.carbonEmissions && f.carbonEmissions.thisFlightKg != null
-      ? `${f.carbonEmissions.thisFlightKg} kg CO2e<div class="detail-emissions-sub">${f.carbonEmissions.differencePercent > 0 ? '+' : ''}${f.carbonEmissions.differencePercent}% vs typical</div>`
+      ? `${tmEsc(f.carbonEmissions.thisFlightKg)} kg CO2e<div class="detail-emissions-sub">${f.carbonEmissions.differencePercent > 0 ? '+' : ''}${tmEsc(f.carbonEmissions.differencePercent)}% vs typical</div>`
       : '';
 
     return `
       <div class="flight-detail-header">
-        <div class="detail-date">${formatDetailDate(f.departureDate)}</div>
+        <div class="detail-date">${tmEsc(formatDetailDate(f.departureDate))}</div>
         <div class="detail-emissions">${emissionsHtml}</div>
-        <div class="detail-price">${formatFare(f)}</div>
+        <div class="detail-price">${tmEsc(formatFare(f))}</div>
       </div>
       ${getFlightSegments(f).map(renderFlightSegment).join('')}
     `;
@@ -6952,11 +6941,13 @@
   }
   function airlineLogoHtml(name, flightNumber, given, size = 28) {
     const code = airlineIataCode(name, flightNumber);
-    const src = given || (code ? `https://www.gstatic.com/flights/airline_logos/70px/${code}.png` : '');
-    const initials = escapeHtml(airlineInitials(name));
-    const box = `width:${size}px;height:${size}px`;
-    if (!src) return `<span class="al-logo al-initials" style="${box}" title="${escapeHtml(name || '')}">${initials}</span>`;
-    return `<img class="al-logo" style="${box}" src="${escapeHtml(src)}" alt="${escapeHtml(name || 'Airline')} logo" title="${escapeHtml(name || '')}" loading="lazy" referrerpolicy="no-referrer"
+    // A provider-supplied logo is used only when it is an https:// address.
+    const givenSrc = typeof given === 'string' && /^https:\/\//i.test(given.trim()) ? given.trim() : '';
+    const src = givenSrc || (code ? `https://www.gstatic.com/flights/airline_logos/70px/${code}.png` : '');
+    const initials = tmEsc(airlineInitials(name));
+    const box = `width:${Number(size) || 28}px;height:${Number(size) || 28}px`;
+    if (!src) return `<span class="al-logo al-initials" style="${box}" title="${tmEsc(name || '')}">${initials}</span>`;
+    return `<img class="al-logo" style="${box}" src="${tmEsc(src)}" alt="${tmEsc(name || 'Airline')} logo" title="${tmEsc(name || '')}" loading="lazy" referrerpolicy="no-referrer"
       onerror="this.outerHTML='&lt;span class=&quot;al-logo al-initials&quot; style=&quot;${box}&quot;&gt;${initials}&lt;/span&gt;'">`;
   }
   // One logo per carrier on the trip, up to two (IndiGo + Qatar Airways).
@@ -7133,7 +7124,7 @@
       });
       // Longer than the backend's own 20 s SerpApi timeout (twice that when it
       // must find the flight first), so a slow answer isn't thrown away.
-      const res = await fetchWithTimeout(`http://localhost:3000/api/flights/booking-options?${q}`, token ? 30000 : 50000, 'booking');
+      const res = await fetchWithTimeout(`${TM_API_BASE}/api/flights/booking-options?${q}`, token ? 30000 : 50000, 'booking');
       const body = await res.json().catch(() => null);
       const pick = body && Array.isArray(body.options) ? pickBookingOption(body.options, f) : null;
       if (res.ok && body) flightApplyAirlinePrice(f, pick && pick.isAirline ? pick : body.airlineOption, btn);
@@ -7164,13 +7155,13 @@
     // emissions/baggage data (Amadeus Self-Service doesn't reliably include either).
     const tagsHtml = (f.emissions || f.bags)
       ? `${emissionsTagHtml(f)}${f.bags ? `<span class="bag-tag">${f.bags.includes('checked-bag') ? 'Carry-on + checked bag' : 'Carry-on bag only'}</span>` : ''}`
-      : `<span class="bag-tag">${(f.cabinClass || 'Economy').replace(/_/g, ' ').replace(/\w\S*/g, w => w[0] + w.slice(1).toLowerCase())}</span>`;
+      : `<span class="bag-tag">${tmEsc(String(f.cabinClass || 'Economy').replace(/_/g, ' ').replace(/\w\S*/g, w => w[0] + w.slice(1).toLowerCase()))}</span>`;
 
     const timeBlock = (hhmm, place, end) => `
             <div class="ab-t${end ? ' ab-t-end' : ''}">
-              <strong>${formatTime12hr(hhmm)}</strong>
-              ${nextDayLabel(hhmm) ? `<span class="next-day-tag">${nextDayLabel(hhmm)}</span>` : ''}
-              <span>${place}</span>
+              <strong>${tmEsc(formatTime12hr(hhmm))}</strong>
+              ${nextDayLabel(hhmm) ? `<span class="next-day-tag">${tmEsc(nextDayLabel(hhmm))}</span>` : ''}
+              <span>${tmEsc(place)}</span>
             </div>`;
 
     return `
@@ -7181,23 +7172,23 @@
             ${tagsHtml}
           </div>
           <div class="ab-price">
-            <div class="ab-from">From <strong>${formatFare(f)}</strong></div>
+            <div class="ab-from">From <strong>${tmEsc(formatFare(f))}</strong></div>
             <div class="ab-price-note">${escapeHtml(flightPriceNoteFor(f))}</div>
           </div>
         </div>
         <div class="ab-card-mid">
           <div class="ab-op">
-            <div class="ab-op-name"><span class="fl-logos">${flightCardLogos(f)}</span>${f.airline}</div>
-            <div class="ab-op-type">${f.flightNumber}</div>
-            <div class="ab-op-origin">${f.stops === 0 ? 'Nonstop' : `${f.stops} stop${f.stops > 1 ? 's' : ''} · ${f.stopCity}`}</div>
+            <div class="ab-op-name"><span class="fl-logos">${flightCardLogos(f)}</span>${tmEsc(f.airline)}</div>
+            <div class="ab-op-type">${tmEsc(f.flightNumber)}</div>
+            <div class="ab-op-origin">${f.stops === 0 ? 'Nonstop' : `${tmEsc(f.stops)} stop${f.stops > 1 ? 's' : ''} · ${tmEsc(f.stopCity)}`}</div>
           </div>
           <div class="ab-timeline">
             ${timeBlock(f.departureTime, flightFromLabel)}
-            <div class="ab-dur"><span>${f.duration}</span></div>
+            <div class="ab-dur"><span>${tmEsc(f.duration)}</span></div>
             ${timeBlock(f.arrivalTime, flightToLabel, true)}
           </div>
           <div class="ab-cta">
-            <button type="button" class="ab-select-btn ab-book-flight" onclick="flightBookNow(${index}, this)" title="Book on ${escapeHtml(airlineBookingSite(f).name)}">Book Now</button>
+            <button type="button" class="ab-select-btn ab-book-flight" onclick="flightBookNow(${index}, this)" title="Book on ${tmEsc(airlineBookingSite(f).name)}">Book Now</button>
             <button type="button" class="flight-details-link" onclick="toggleFlightDetail(${index})">Flight details ▾</button>
           </div>
         </div>
@@ -7227,7 +7218,7 @@
 
     let text = `Fares on this list run from <strong>${fmt(min)}</strong> to <strong>${fmt(max)}</strong>`;
     if (insights && insights.priceLevel) {
-      text = `Google Flights rates prices for this search as <strong>${insights.priceLevel}</strong>` +
+      text = `Google Flights rates prices for this search as <strong>${tmEsc(insights.priceLevel)}</strong>` +
         (range ? ` — usually <strong>${fmt(range[0])}</strong> to <strong>${fmt(range[1])}</strong>` : '') +
         `. Cheapest here: <strong>${fmt(min)}</strong>`;
     }
@@ -7355,7 +7346,7 @@
 
   async function fetchLiveFlights(fromCode, toCode) {
     const query = buildFlightSearchQuery(fromCode, toCode);
-    const response = await fetchWithTimeout(`http://localhost:3000/api/flights/search?${query}`, SEARCH_TIMEOUT_MS.flights, 'flight');
+    const response = await fetchWithTimeout(`${TM_API_BASE}/api/flights/search?${query}`, SEARCH_TIMEOUT_MS.flights, 'flight');
     const body = await response.json().catch(() => null);
 
     if (!response.ok) {
@@ -7375,6 +7366,7 @@
     const flightCity = code => (flightAirports.find(a => a.code === code) || {}).city || code;
     abRouteHead('flightRouteHead', flightCity(fromCode), flightCity(toCode), document.getElementById('flightDepartureDate').value);
     showFlightLoadingState();
+    flightSearchFailed = false;
 
     try {
       const body = await fetchLiveFlights(fromCode, toCode);
@@ -7399,7 +7391,8 @@
       // stand-in flights are shown in place of real ones.
       flightSearchResults = [];
       flightSearchMeta = {};
-      showFlightErrorState(fromCode, toCode, err.message);
+      flightSearchFailed = true;
+      showFlightErrorState(fromCode, toCode, TM_OPENED_AS_FILE ? TM_FILE_REASON : err.message);
     }
   }
 
@@ -8442,7 +8435,7 @@
 
     try {
       const query = new URLSearchParams({ trainNumber, classType, from, to, date }).toString();
-      const response = await fetch(`http://localhost:3000/api/trains/class-availability?${query}`);
+      const response = await fetch(`${TM_API_BASE}/api/trains/class-availability?${query}`);
       const body = await response.json().catch(() => null);
 
       if (body && body.live) {
@@ -8947,7 +8940,7 @@
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 6000);
-      const res = await fetch(`http://localhost:3000/api/trains/schedule?train=${encodeURIComponent(trainNumber)}`, { signal: ctrl.signal });
+      const res = await fetch(`${TM_API_BASE}/api/trains/schedule?train=${encodeURIComponent(trainNumber)}`, { signal: ctrl.signal });
       clearTimeout(timer);
       if (res.ok) {
         const body = await res.json();
@@ -9842,7 +9835,7 @@
       if (q.length < 2) return;
       let items;
       try {
-        const res = await fetch(`http://localhost:3000/api/locations/search?limit=15${flightsOnly ? '&trip=international' : ''}&q=${encodeURIComponent(q)}`);
+        const res = await fetch(`${TM_API_BASE}/api/locations/search?limit=15${flightsOnly ? '&trip=international' : ''}&q=${encodeURIComponent(q)}`);
         if (!res.ok) return;
         items = (await res.json()).results || [];
       } catch (e) {
@@ -10990,9 +10983,7 @@
     tmToast._t = setTimeout(() => el.classList.remove('show'), 2800);
   }
 
-  function tmEsc(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
+  // tmEsc is defined once, near the top of the page (null-safe).
 
   function tmInitial(name) { return (name || '?').trim().charAt(0).toUpperCase() || '?'; }
 
@@ -11347,14 +11338,14 @@
 
 <script>
   /* ---------- Train booking: Book Now → Passenger Details ----------
-     Mirrors IRCTC's psgninput flow in three steps:
-       1. Passenger Details — journey summary + boarding station, passengers
+     Mirrors IRCTC's psgninput flow in two steps (payment is decided later):
+       1. Passenger Details — journey summary, passengers
           (name, age, gender, nationality, berth preference) with suggestions
           from the saved list, infants without berth, contact, GST, other
           preferences, travel insurance and payment mode, plus a fare summary;
-       2. Review Journey — everything entered, read back for checking;
-       3. Payment — TravelMate has no payment gateway, so the final step hands
-          the rider to IRCTC with the details ready to copy.
+       2. Review Journey — everything entered, read back for checking, then a
+          link to IRCTC's train search: TravelMate takes no payment and issues
+          no ticket, so the rider books and pays on IRCTC.
      Pick a class on the card first (click its pill); otherwise the cheapest
      class is used. Passengers who go through step 1 are saved to this
      device's list (localStorage) and suggested next time, like IRCTC's
@@ -11391,21 +11382,6 @@
     return ['No Preference', 'Lower', 'Middle', 'Upper', 'Side Lower', 'Side Upper'];
   }
 
-  // Stops the rider can board at: the searched station and any later halts
-  // before the destination, when the bundled timetable has this train.
-  function bkBoardingOptions(trainNumber, fromCode, toCode) {
-    const sched = (typeof TRAIN_SCHEDULES !== 'undefined' && TRAIN_SCHEDULES[String(trainNumber)]) || null;
-    const name = (c) => (typeof getStationName === 'function' && getStationName(c)) || c;
-    if (sched) {
-      const i = sched.findIndex(s => s[0] === fromCode);
-      const j = sched.findIndex(s => s[0] === toCode);
-      if (i >= 0 && j > i) {
-        return sched.slice(i, j).map(s => ({ code: s[0], name: s[1], arr: s[2], dep: s[3], day: s[6] - sched[i][6] + 1 }));
-      }
-    }
-    return [{ code: fromCode, name: name(fromCode), arr: null, dep: null, day: 1 }];
-  }
-
   function bkDateLabel(dateObj) {
     return dateObj ? formatDayDate(dateObj) : '';
   }
@@ -11437,8 +11413,6 @@
       train, clsKey: cls.cls, fare: Number(fare) || 0, fareLive: cls.live === true, status: cls.live === true ? cls.status : '',
       fromCode, toCode, date,
       depDate: addDaysToISO(date, 0), arrDate: addDaysToISO(date, arrOffset),
-      boarding: bkBoardingOptions(train.trainNumber, fromCode, toCode),
-      boardingCode: fromCode,
       passengers: [bkBlankPsg()],
       infants: [],
       mobile: (s && s.phone ? String(s.phone).replace(/\D/g, '').slice(-10) : ''),
@@ -11474,13 +11448,13 @@
 
   // ---- Rendering ----
   function bkRender() {
-    const steps = ['Passenger Details', 'Review Journey', 'Payment'];
+    const steps = ['Passenger Details', 'Review Journey'];
     document.getElementById('bkSteps').innerHTML = steps.map((label, i) => {
       const n = i + 1;
       const cls = n === bk.step ? 'active' : n < bk.step ? 'done' : '';
       return `<div class="bk-step ${cls}"><div class="dot">${n < bk.step ? '✓' : n}</div>${label}</div>`;
     }).join('');
-    const body = bk.step === 1 ? bkStep1() : bk.step === 2 ? bkStep2() : bkStep3();
+    const body = bk.step === 1 ? bkStep1() : bkStep2();
     document.getElementById('bkBody').innerHTML = `
       <div class="bk-grid">
         <div class="bk-main">${body}</div>
@@ -11492,9 +11466,6 @@
     const t = bk.train;
     const from = getStationName(bk.fromCode) || bk.fromCode;
     const to = getStationName(bk.toCode) || bk.toCode;
-    const b = bk.boarding.find(x => x.code === bk.boardingCode) || bk.boarding[0];
-    const boardDate = addDaysToISO(bk.date, (b.day || 1) - 1);
-    const bLabel = (x) => `${x.name} (${x.code})${x.dep ? ` | Departure: ${formatTime12hr(x.dep)}` : ''}${x.day > 1 ? ` | Day ${x.day}` : ''}`;
     return `
       <div class="bk-card">
         <div class="bk-train-head">
@@ -11507,14 +11478,7 @@
           <div class="end"><strong>${formatTime12hr(t.arrivalTime)} | ${bkEsc(to)}</strong><span>${bkDateLabel(bk.arrDate)}</span></div>
         </div>
         <div style="text-align:center"><span class="bk-class-tag">${bkEsc(BK_CLASS_NAMES[bk.clsKey] || bk.clsKey)} | General</span></div>
-        ${editable ? `
-          <label class="bk-label" for="bkBoarding">Boarding Station</label>
-          <select class="bk-sel" id="bkBoarding" onchange="bk.boardingCode=this.value; bkRender()" ${bk.boarding.length < 2 ? 'disabled' : ''}>
-            ${bk.boarding.map(x => `<option value="${bkEsc(x.code)}" ${x.code === bk.boardingCode ? 'selected' : ''}>${bkEsc(bLabel(x))}</option>`).join('')}
-          </select>
-          <div class="bk-small">Boarding Date: <strong>${bkLongDate(boardDate)}</strong>${bk.boarding.length < 2 ? ' · Other boarding points aren\'t listed for this train.' : ''}</div>`
-        : `<div class="bk-small" style="margin-top:12px">Boarding at <strong>${bkEsc(b.name)} (${bkEsc(b.code)})</strong> on <strong>${bkLongDate(boardDate)}</strong></div>`}
-        <div class="bk-ntes">Please check <a href="https://enquiry.indianrail.gov.in/ntes/" target="_blank" rel="noopener">NTES website</a> or <a href="https://play.google.com/store/apps/details?id=cris.org.in.prs.ntes" target="_blank" rel="noopener">NTES app</a> for actual time before boarding</div>
+        <div class="bk-ntes" style="margin-top:12px">Please check <a href="https://enquiry.indianrail.gov.in/ntes/" target="_blank" rel="noopener">NTES website</a> or <a href="https://play.google.com/store/apps/details?id=cris.org.in.prs.ntes" target="_blank" rel="noopener">NTES app</a> for actual time before boarding</div>
       </div>`;
   }
 
@@ -11606,7 +11570,7 @@
 
       <div class="bk-card">
         <h4>Contact Details</h4>
-        ${s ? `<div class="bk-login-hint">Ticket details will be sent to the email and mobile number below.</div>`
+        ${s ? `<div class="bk-login-hint">Use these for your IRCTC booking — IRCTC sends the ticket to them once you book there.</div>`
             : `<div class="bk-login-hint"><button type="button" onclick="if (typeof tmOpenLogin==='function') tmOpenLogin('login')">Log in</button> to fill these from your TravelMate account.</div>`}
         <div class="bk-row2">
           <div>
@@ -11654,7 +11618,8 @@
       </div>
 
       <div class="bk-card">
-        <h4>Payment Mode</h4>
+        <h4>Payment Mode on IRCTC</h4>
+        <div class="bk-small" style="margin:0 0 8px">TravelMate doesn't take payments — you pay on IRCTC. This choice only estimates IRCTC's convenience fee.</div>
         <div class="bk-radios" style="flex-direction:column">
           <label><input type="radio" name="bkPay" value="card" ${bk.pay === 'card' ? 'checked' : ''} onchange="bk.pay='card'; bkRender()">Pay through Credit &amp; Debit Cards / Net Banking / Wallets / Pay Later (Convenience Fee: ₹${BK_FEE.card.toFixed(2)} + Payment Gateway Charges)</label>
           <label><input type="radio" name="bkPay" value="upi" ${bk.pay === 'upi' ? 'checked' : ''} onchange="bk.pay='upi'; bkRender()">Pay through BHIM / UPI (Convenience Fee: ₹${BK_FEE.upi.toFixed(2)})</label>
@@ -11669,7 +11634,6 @@
   }
 
   function bkStep2() {
-    const b = bk.boarding.find(x => x.code === bk.boardingCode) || bk.boarding[0];
     return `
       ${bkJourneyCard(false)}
       <div class="bk-card">
@@ -11688,42 +11652,26 @@
         <dl class="bk-kv">
           <dt>Mobile</dt><dd>+91 ${bkEsc(bk.mobile)}</dd>
           <dt>Email</dt><dd>${bkEsc(bk.email || '—')}</dd>
-          <dt>Boarding Station</dt><dd>${bkEsc(b.name)} (${bkEsc(b.code)})</dd>
           ${bk.gstin ? `<dt>GSTIN</dt><dd>${bkEsc(bk.gstin)}</dd>` : ''}
           <dt>Auto Upgradation</dt><dd>${bk.autoUpgrade ? 'Yes' : 'No'}</dd>
           <dt>Confirm berths only</dt><dd>${bk.confirmOnly ? 'Yes' : 'No'}</dd>
           <dt>Reservation Choice</dt><dd>${bkEsc(bk.resChoice)}</dd>
           ${bk.coach ? `<dt>Preferred Coach</dt><dd>${bkEsc(bk.coach)}</dd>` : ''}
           <dt>Travel Insurance</dt><dd>${bk.insurance === 'yes' ? 'Yes' : 'No'}</dd>
-          <dt>Payment Mode</dt><dd>${bk.pay === 'upi' ? 'BHIM / UPI' : 'Cards / Net Banking / Wallets'}</dd>
+          <dt>Payment Mode on IRCTC</dt><dd>${bk.pay === 'upi' ? 'BHIM / UPI' : 'Cards / Net Banking / Wallets'}</dd>
         </dl>
+      </div>
+      <div class="bk-card bk-done">
+        <h4 style="margin:0">Next: book on IRCTC</h4>
+        <p>Nothing has been booked yet. TravelMate doesn't take payments or issue tickets — you book and pay on IRCTC.
+          Open IRCTC, pick <strong>${bkEsc(bk.train.trainName)} (${bkEsc(bk.train.trainNumber)})</strong> in
+          <strong>${bkEsc(BK_CLASS_NAMES[bk.clsKey] || bk.clsKey)}</strong> for <strong>${bkLongDate(bk.depDate)}</strong>,
+          and enter the passengers above.</p>
       </div>
       <div class="bk-actions">
         <button type="button" class="bk-btn bk-btn-ghost" onclick="bkGo(1)">Back</button>
-        <button type="button" class="bk-btn bk-btn-primary" onclick="bkGo(3)">Continue to Payment</button>
-      </div>`;
-  }
-
-  function bkStep3() {
-    const f = bkFare();
-    const lines = bk.passengers.map((p, i) => `${i + 1}. ${p.name}, ${p.age}, ${p.gender}, ${p.berth}`).join('\n');
-    return `
-      <div class="bk-card bk-done">
-        <div class="big">💳</div>
-        <h4 style="margin:6px 0 0">Ready to pay ${bkMoney(f.total)}</h4>
-        <p>TravelMate doesn't take payments yet, so tickets are issued on IRCTC. Open IRCTC, pick
-          <strong>${bkEsc(bk.train.trainName)} (${bkEsc(bk.train.trainNumber)})</strong> in
-          <strong>${bkEsc(BK_CLASS_NAMES[bk.clsKey] || bk.clsKey)}</strong> for <strong>${bkLongDate(bk.depDate)}</strong>,
-          and enter the passengers below — they're saved for next time on this device.</p>
-        <textarea class="bk-in" id="bkCopyText" rows="${Math.min(bk.passengers.length + 1, 7)}" readonly style="max-width:520px;margin:0 auto 14px;display:block;resize:none">${bkEsc(lines)}</textarea>
-        <div class="bk-actions" style="justify-content:center">
-          <button type="button" class="bk-btn bk-btn-ghost" onclick="bkCopy()">Copy passenger list</button>
-          <a class="bk-btn bk-btn-primary" style="text-decoration:none" href="https://www.irctc.co.in/nget/train-search" target="_blank" rel="noopener">Pay on IRCTC ↗</a>
-        </div>
-      </div>
-      <div class="bk-actions">
-        <button type="button" class="bk-btn bk-btn-ghost" onclick="bkGo(2)">Back</button>
         <button type="button" class="bk-btn bk-btn-ghost" onclick="bkClose()">Done</button>
+        <a class="bk-btn bk-btn-primary" style="text-decoration:none" href="https://www.irctc.co.in/nget/train-search" target="_blank" rel="noopener">Continue on IRCTC ↗</a>
       </div>`;
   }
 
@@ -11838,13 +11786,6 @@
     document.getElementById('bkScroll').scrollTop = 0;
   }
 
-  function bkCopy() {
-    const ta = document.getElementById('bkCopyText');
-    const done = () => { if (typeof tmToast === 'function') tmToast('Passenger list copied.'); };
-    if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
-    else { ta.select(); document.execCommand('copy'); done(); }
-  }
-
   // ---- Wiring: class pills select, Book Now opens the form (Trains tab + Compare page) ----
   document.addEventListener('click', (e) => {
     const book = e.target.closest('.tm-book-train');
@@ -11862,6 +11803,19 @@
       e.stopImmediatePropagation();
     }
   }, true);
+</script>
+<script>
+  // TravelMate is served by its backend (npm start, then http://localhost:3000/).
+  // Opened as a file, the page's requests carry "Origin: null", which the
+  // backend refuses — so live searches can't work; say where to open it.
+  if (location.protocol === 'file:') {
+    const notice = document.createElement('div');
+    notice.className = 'tm-file-notice';
+    notice.setAttribute('role', 'alert');
+    notice.style.cssText = 'background:#fff4e5;color:#7a4b00;border-bottom:1px solid #f0c27a;padding:10px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center';
+    notice.innerHTML = 'Open TravelMate at <a href="http://localhost:3000/" style="color:#1a5f7a;font-weight:700">http://localhost:3000</a> (start the backend with <code>npm start</code>). Opened as a file, live searches are blocked — trains and buses fall back to demo data.';
+    document.body.prepend(notice);
+  }
 </script>
 </body>
 </html>

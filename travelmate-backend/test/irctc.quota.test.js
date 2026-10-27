@@ -18,6 +18,10 @@ const axios = require('axios');
 const express = require('express');
 
 const ROOT = path.join(__dirname, '..');
+// The fixed travel dates in these tests stay valid: "today" is pinned for
+// travel-date checks (see TRAVELMATE_TODAY in src/utils/requestNormalizers.js).
+process.env.TRAVELMATE_TODAY = '2026-10-20';
+process.env.NODE_ENV = 'test'; // TRAVELMATE_TODAY only applies in the test environment
 const USAGE_FILE = path.join(os.tmpdir(), `travelmate-irctc-quota-test-${process.pid}.json`);
 process.env.RAPIDAPI_KEY = 'fake-rapidapi-key-for-quota-tests';
 process.env.TRAIN_API_USAGE_FILE = USAGE_FILE;
@@ -372,5 +376,5 @@ test('TravelMate only lets the searched station pair verify; other pairs and Com
   assert.match(html, /fetchLiveTrains\(pair\.from\.code, pair\.to\.code, \{ verify: false \}\)/);
   assert.match(html, /if \(!verify\) params\.verify = '0';/);
   assert.equal((html.match(/fetchLiveTrains\(/g) || []).length, 3, 'definition + two callers, nothing else');
-  assert.equal((html.match(/fetch\(`http:\/\/localhost:3000\/api\/trains\/schedule\?/g) || []).length, 1, 'only the pop-up asks for a schedule');
+  assert.equal((html.match(/fetch\(`\$\{TM_API_BASE\}\/api\/trains\/schedule\?/g) || []).length, 1, 'only the pop-up asks for a schedule');
 });

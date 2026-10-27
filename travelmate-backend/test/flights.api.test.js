@@ -9,6 +9,10 @@ const axios = require('axios');
 const express = require('express');
 
 const ROOT = path.join(__dirname, '..');
+// The fixed travel dates in these tests stay valid: "today" is pinned for
+// travel-date checks (see TRAVELMATE_TODAY in src/utils/requestNormalizers.js).
+process.env.TRAVELMATE_TODAY = '2026-10-20';
+process.env.NODE_ENV = 'test'; // TRAVELMATE_TODAY only applies in the test environment
 const FAKE_KEY = 'fake-serpapi-key-for-flight-tests';
 process.env.SERPAPI_KEY = FAKE_KEY;
 
@@ -94,6 +98,8 @@ test('a SerpApi failure is a 502 with no flights — never generated stand-ins',
   assert.equal(status, 502);
   assert.equal(body.error.reason, 'provider_error');
   assert.match(body.error.message, /could not be retrieved/);
+  // SerpApi's own message (and its links) stay in the server log
+  assert.doesNotMatch(body.error.message, /Invalid API key|serpapi\.com/);
   assert.deepEqual(body.results, []);
   assert.equal(body.meta.source, 'unavailable');
   assert.equal(body.meta.count, 0);
@@ -107,6 +113,17 @@ test('a network failure or timeout is also a 502 with no flights', async (t) => 
   assert.equal(status, 502);
   assert.deepEqual(body.results, []);
   assert.equal(body.meta.source, 'unavailable');
+  assert.doesNotMatch(body.error.message, /timeout of|ECONNABORTED/);
+});
+
+test('the provider\'s error text is logged for debugging, though the browser never sees it', async (t) => {
+  const logged = [];
+  t.mock.method(console, 'warn', (...a) => logged.push(a.map(String).join(' ')));
+  t.mock.method(console, 'error', () => {});
+  respond = () => ({ status: 200, data: { error: 'Unsupported departure_id parameter.' } });
+  const { body } = await search('?origin=BLR&destination=HBX&departureDate=2026-11-27');
+  assert.equal(body.error.message, 'Live flight prices could not be retrieved right now. No flights are shown rather than guessed ones — please try again.');
+  assert.ok(logged.some((l) => l.includes('Unsupported departure_id parameter.')), 'provider message logged');
 });
 
 test('a failed search is not cached: the next try asks SerpApi again', async (t) => {

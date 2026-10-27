@@ -14,6 +14,10 @@ const axios = require('axios');
 const express = require('express');
 
 const ROOT = path.join(__dirname, '..');
+// The fixed travel dates in these tests stay valid: "today" is pinned for
+// travel-date checks (see TRAVELMATE_TODAY in src/utils/requestNormalizers.js).
+process.env.TRAVELMATE_TODAY = '2026-10-20';
+process.env.NODE_ENV = 'test'; // TRAVELMATE_TODAY only applies in the test environment
 const HTML = fs.readFileSync(path.join(ROOT, '..', 'TravelMate.html'), 'utf8');
 const USAGE_FILE = path.join(os.tmpdir(), `travelmate-irctc-budget-test-${process.pid}.json`);
 process.env.RAPIDAPI_KEY = 'fake-rapidapi-key-for-budget-tests';

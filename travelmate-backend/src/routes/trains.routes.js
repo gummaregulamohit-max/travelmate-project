@@ -7,9 +7,11 @@ const { searchLiveTrains, fetchTrainsBetweenStations, fetchIrctcSchedule, fetchS
 const { estimateClassFare } = require('../utils/mockTrainGenerator');
 const { findKnownTrains } = require('../data/knownTrainRoutes');
 const { fetchErailTrains, fetchTrainSchedule } = require('../services/erail.service');
-const { normalizeDateToISO, extractStationCode, queryString, parseLimit } = require('../utils/requestNormalizers');
+const { checkTravelDate, travelDateMessage, extractStationCode, queryString, parseLimit } = require('../utils/requestNormalizers');
 const { getCached, setCached } = require('../services/cache.service');
 const { IRCTC_SEAT_CHECK_URL, SEAT_CHECK_STATUS, REASONS, withSeatCheck, availabilityReason } = require('../utils/seatAvailability');
+// /search and /schedule can send IRCTC (RapidAPI) requests and erail.in calls.
+const { trainsLimiter } = require('../middleware/rateLimit');
 
 // How erail.in data is labelled in responses: the published Indian Railways
 // timetable and fare chart, fetched when the response was built (meta
@@ -139,8 +141,12 @@ router.get('/class-availability', async (req, res, next) => {
     const classType = typeof req.query.classType === 'string' ? req.query.classType.trim().toUpperCase() : '';
     const from = extractStationCode(req.query.from);
     const to = extractStationCode(req.query.to);
-    const date = normalizeDateToISO(req.query.date);
+    const dateCheck = checkTravelDate(req.query.date);
+    const date = dateCheck.date;
 
+    if (dateCheck.error === 'past') {
+      return res.status(400).json({ error: { message: travelDateMessage(dateCheck), status: 400 } });
+    }
     if (!trainNumber || !classType || !from || !to || !date) {
       return res.status(400).json({ error: { message: 'trainNumber, classType, from, to, and date are all required.', status: 400 } });
     }
@@ -157,7 +163,10 @@ router.get('/class-availability', async (req, res, next) => {
       res.json({ live: true, ...result });
     } catch (err) {
       const reason = availabilityReason(err);
-      notLive(reason, reason === REASONS.RATE_LIMITED ? 'Live lookups are rate-limited right now — try again shortly.' : err.message);
+      // Only fixed text reaches the browser (IrctcApiError's publicMessage),
+      // never a provider's own message.
+      notLive(reason, reason === REASONS.RATE_LIMITED ? 'Live lookups are rate-limited right now — try again shortly.'
+        : err.publicMessage || 'No live update available for this class right now.');
     }
   } catch (err) {
     next(err);
@@ -179,7 +188,7 @@ router.get('/class-availability', async (req, res, next) => {
  * 404 only when every source answered and none knows the train; 503 when a
  * source failed — that never means the train doesn't exist.
  */
-router.get('/schedule', async (req, res, next) => {
+router.get('/schedule', trainsLimiter, async (req, res, next) => {
   try {
     const train = typeof req.query.train === 'string' ? req.query.train.trim() : '';
     if (!/^\d{4,5}$/.test(train)) {
@@ -264,11 +273,12 @@ router.get('/schedule', async (req, res, next) => {
  * 'timetable' (timetable / reference data only) | 'no_results' |
  * 'provider_unavailable' (no trains because a source failed — not "no trains").
  */
-router.get('/search', async (req, res, next) => {
+router.get('/search', trainsLimiter, async (req, res, next) => {
   try {
     const from = extractStationCode(req.query.from);
     const to = extractStationCode(req.query.to);
-    const date = normalizeDateToISO(req.query.date);
+    const dateCheck = checkTravelDate(req.query.date);
+    const date = dateCheck.date;
 
     if (!from) {
       return res.status(400).json({ error: { message: 'A valid "from" station code is required (e.g. "NDLS").', status: 400 } });
@@ -280,7 +290,7 @@ router.get('/search', async (req, res, next) => {
       return res.status(400).json({ error: { message: 'Origin and destination cannot be the same station.', status: 400 } });
     }
     if (!date) {
-      return res.status(400).json({ error: { message: 'A valid "date" is required, as YYYY-MM-DD or DD-MM-YYYY.', status: 400 } });
+      return res.status(400).json({ error: { message: travelDateMessage(dateCheck), status: 400 } });
     }
 
     // The live tier below can fire off a dozen-plus RapidAPI calls for a single

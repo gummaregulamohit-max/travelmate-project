@@ -139,10 +139,18 @@ class IrctcApiError extends Error {
 // A lock left behind by a crashed process is broken when its owner process is
 // gone (same host) or it is older than LOCK_STALE_MS. A process that can't get
 // the lock within TRAIN_API_LOCK_TIMEOUT_MS sends no request (usage_locked).
+//
+// Windows: deleting a file another process still has open leaves its name
+// "delete pending" for a moment, and creating it again then fails with EPERM
+// (or EACCES) instead of EEXIST; a virus scanner holding it gives EBUSY. Those
+// codes mean "busy" too, so they wait and retry like EEXIST. To keep that
+// window from opening at all, the lock is released by renaming it to a unique
+// name first (which frees the name at once) and deleting that.
 
 const DEFAULT_USAGE_FILE = path.join(__dirname, '..', '..', '.cache', 'irctc-usage.json');
 const DEFAULT_LOCK_TIMEOUT_MS = 5000;
 const LOCK_STALE_MS = 30 * 1000;
+const LOCK_BUSY_CODES = new Set(['EEXIST', 'EPERM', 'EACCES', 'EBUSY']);
 const sleepCell = new Int32Array(new SharedArrayBuffer(4));
 // A 403/429 seen by this process, kept in memory too in case recording it in
 // the usage file fails — so this process never sends again regardless.
@@ -207,29 +215,50 @@ function breakStaleLock(lock) {
   return true;
 }
 
+// Releases a lock this process holds: renamed aside (frees the lock's name at
+// once, even while another process is reading it) and then deleted. Falls
+// back to deleting it in place if the rename is refused.
+function releaseLock(lock) {
+  const aside = `${lock}.released-${process.pid}-${Math.random().toString(36).slice(2)}`;
+  try {
+    fs.renameSync(lock, aside);
+  } catch (err) {
+    if (err.code !== 'ENOENT') fs.rmSync(lock, { force: true });
+    return;
+  }
+  fs.rmSync(aside, { force: true });
+}
+
 function withUsageLock(fn) {
   const file = usageFile();
   const lock = `${file}.lock`;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const deadline = realNow() + lockTimeoutMs();
   for (;;) {
+    let fd;
     try {
-      const fd = fs.openSync(lock, 'wx');
-      try { fs.writeSync(fd, JSON.stringify({ pid: process.pid, host: os.hostname(), at: new Date(realNow()).toISOString() })); } finally { fs.closeSync(fd); }
-      break;
+      fd = fs.openSync(lock, 'wx');
     } catch (err) {
-      if (err.code !== 'EEXIST') throw err;
-      if (breakStaleLock(lock)) continue;
+      if (!LOCK_BUSY_CODES.has(err.code)) throw err;
+      if (err.code === 'EEXIST' && breakStaleLock(lock)) continue;
       if (realNow() > deadline) {
+        if (err.code !== 'EEXIST') console.warn(`[trains] The IRCTC usage lock stayed unavailable (${err.code}) — no request was sent.`);
         throw new IrctcApiError(REASON_MESSAGES.usage_locked, 503, null, 'usage_locked');
       }
       sleepSync(5 + Math.floor(Math.random() * 10));
+      continue;
     }
+    try {
+      fs.writeSync(fd, JSON.stringify({ pid: process.pid, host: os.hostname(), at: new Date(realNow()).toISOString() }));
+    } finally {
+      fs.closeSync(fd);
+    }
+    break;
   }
   try {
     return fn();
   } finally {
-    fs.rmSync(lock, { force: true });
+    releaseLock(lock);
   }
 }
 

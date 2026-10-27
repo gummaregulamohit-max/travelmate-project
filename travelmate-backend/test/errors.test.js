@@ -6,7 +6,7 @@ const express = require('express');
 const { startServer } = require('./helpers/server');
 
 const ROOT = path.join(__dirname, '..');
-const { errorHandler, apiArea } = require(path.join(ROOT, 'src/middleware/errorHandler'));
+const { errorHandler, apiArea, redactUrl, isProviderError } = require(path.join(ROOT, 'src/middleware/errorHandler'));
 
 // --- Real server: requests that match no route -----------------------------
 
@@ -134,4 +134,70 @@ test('apiArea: reads the area from the original URL', () => {
   assert.equal(apiArea({ originalUrl: '/API/Trains/stations' }), 'trains');
   assert.equal(apiArea({ originalUrl: '/index.html' }), 'server');
   assert.equal(apiArea(undefined), 'server');
+});
+
+// --- provider errors never reach the browser in their own words ------------
+
+test('errorHandler: a provider error that reaches it is answered with fixed text, and logged in full', async (t) => {
+  const logged = t.mock.method(console, 'error', () => {});
+  const serpApiError = Object.assign(new Error('Invalid API key. Your API key should be here: https://serpapi.com/manage-api-key'),
+    { name: 'SerpApiError', status: 502, details: { error: 'Invalid API key.' } });
+  const { status, body } = await hit((req, res, next) => next(serpApiError), '/api/flights/fail');
+  assert.equal(status, 502);
+  assert.deepEqual(body, { error: { message: 'Something went wrong while searching for flights.', status: 502 } });
+  assert.match(logged.mock.calls[0].arguments[3], /Invalid API key/);
+});
+
+test('errorHandler: an IRCTC error uses its fixed public message', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const irctcError = Object.assign(new Error('provider said: quota exceeded for key ...'),
+    { name: 'IrctcApiError', status: 429, publicMessage: 'The IRCTC (RapidAPI) plan has used up its request quota for now.' });
+  const { status, body } = await hit((req, res, next) => next(irctcError), '/api/trains/fail');
+  assert.equal(status, 429);
+  assert.equal(body.error.message, 'The IRCTC (RapidAPI) plan has used up its request quota for now.');
+});
+
+test('errorHandler: an HTTP client error (e.g. a timeout calling a provider) is answered with fixed text', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const axiosError = Object.assign(new Error('getaddrinfo ENOTFOUND erail.in'), { isAxiosError: true });
+  const { status, body } = await hit((req, res, next) => next(axiosError), '/api/trains/fail');
+  assert.equal(status, 500);
+  assert.equal(body.error.message, 'Something went wrong while searching for trains.');
+});
+
+test('isProviderError: only provider and HTTP-client errors', () => {
+  assert.equal(isProviderError(Object.assign(new Error('x'), { name: 'SerpApiError' })), true);
+  assert.equal(isProviderError(Object.assign(new Error('x'), { name: 'IrctcApiError' })), true);
+  assert.equal(isProviderError({ isAxiosError: true }), true);
+  assert.equal(isProviderError(new Error('Station lookup failed')), false);
+  assert.equal(isProviderError(null), false);
+});
+
+// --- request URLs in logs ---------------------------------------------------
+
+test('redactUrl: booking tokens and key-like values are hidden, the rest of the search is kept', () => {
+  assert.equal(redactUrl('/api/flights/booking-options?token=abc123&origin=BLR&destination=AMS'),
+    '/api/flights/booking-options?token=[redacted]&origin=BLR&destination=AMS');
+  assert.equal(redactUrl('/x?bookingToken=a&booking_token=b&api_key=c&apiKey=d&key=e&access_token=f&password=g&secret=h'),
+    '/x?bookingToken=[redacted]&booking_token=[redacted]&api_key=[redacted]&apiKey=[redacted]&key=[redacted]&access_token=[redacted]&password=[redacted]&secret=[redacted]');
+  assert.equal(redactUrl('/api/trains/search?from=SBC&to=HYB&date=2026-10-30'), '/api/trains/search?from=SBC&to=HYB&date=2026-10-30');
+  assert.equal(redactUrl('/api/locations/search?q=monkey'), '/api/locations/search?q=monkey', 'only whole parameter names match');
+  assert.equal(redactUrl('/x?TOKEN=a'), '/x?TOKEN=[redacted]');
+  assert.equal(redactUrl('/x?%74oken=a'), '/x?%74oken=[redacted]', 'encoded names are recognised');
+  assert.equal(redactUrl('/x?token'), '/x?token=[redacted]');
+  assert.equal(redactUrl('/api/health'), '/api/health');
+  assert.equal(redactUrl(undefined), '');
+});
+
+test('errorHandler: the logged URL has its booking token redacted', async (t) => {
+  const logged = t.mock.method(console, 'error', () => {});
+  await hit((req, res, next) => next(new Error('boom')), '/api/flights/fail?token=secret-booking-token&origin=BLR');
+  const [, , url] = logged.mock.calls[0].arguments;
+  assert.equal(url, '/api/flights/fail?token=[redacted]&origin=BLR');
+});
+
+test('server.js: the request log line goes through redactUrl', () => {
+  const source = require('node:fs').readFileSync(path.join(ROOT, 'server.js'), 'utf8');
+  assert.match(source, /console\.log\(`\[\$\{new Date\(\)\.toISOString\(\)\}\] \$\{req\.method\} \$\{redactUrl\(req\.originalUrl\)\}`\)/);
+  assert.doesNotMatch(source, /\$\{req\.originalUrl\}/);
 });
