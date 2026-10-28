@@ -664,7 +664,39 @@ test('opened as a file: a warning right above the results says the results are d
   assert.match(el.innerHTML, /Flights can't be searched/);
   assert.match(el.innerHTML, /every bus and train result shown here is sample \(demo\) data, not comparable with the real results at <a href="http:\/\/localhost:3000\/"/);
   assert.match(el.innerHTML, /Live searches need the backend: start it with <code>npm start<\/code> and open that address\./);
+  assert.match(el.innerHTML, /<a class="select-flight-btn" href="http:\/\/localhost:3000\/"[^>]*>Open live TravelMate<\/a>/, 'a button opens the live app');
   assert.match(el.style.cssText, /background:#fff4e5/, 'styled like the banner at the top');
 
   assert.deepEqual(runFileNoticeScript('http:'), [], 'served by the backend, neither notice is shown');
+});
+
+// A failed search's message, from the page's real showFlightErrorState() /
+// showTrainErrorState(), with the page opened over `protocol`.
+function renderFailure(fn, protocol) {
+  const list = { innerHTML: '' };
+  const context = vm.createContext({
+    location: { protocol },
+    document: { getElementById: (id) => (/ResultsList$/.test(id) ? list : { style: {} }) },
+    abResultsState() {}, getAirportLabel: (code) => code, getStationName: (code) => code
+  });
+  vm.runInContext([
+    /const TM_OPENED_AS_FILE = .+;/.exec(HTML)[0],
+    declaration(/function tmRetryOrOpenHtml\(/),
+    declaration(new RegExp(`function ${fn}\\(`)),
+    `${fn}('BLR', 'HYD', 'The reason.');`
+  ].join('\n'), context);
+  return list.innerHTML;
+}
+
+test('opened as a file: a failed flight or train search offers the live app, not a retry that would be refused again', () => {
+  for (const [fn, retry] of [['showFlightErrorState', 'searchFlights()'], ['showTrainErrorState', 'searchTrains()']]) {
+    const asFile = renderFailure(fn, 'file:');
+    assert.match(asFile, /The reason\./, `${fn}: the reason is still shown`);
+    assert.match(asFile, /<a class="select-flight-btn" href="http:\/\/localhost:3000\/"[^>]*>Open live TravelMate<\/a>/, fn);
+    assert.doesNotMatch(asFile, /Retry Search/, `${fn}: no retry from a file — it can only be refused again`);
+
+    const asHttp = renderFailure(fn, 'http:');
+    assert.match(asHttp, new RegExp(`<button type="button" class="select-flight-btn" onclick="${retry.replace(/[()]/g, '\\$&')}">Retry Search</button>`), `${fn}: served by the backend, Retry stays`);
+    assert.doesNotMatch(asHttp, /Open live TravelMate/, fn);
+  }
 });
