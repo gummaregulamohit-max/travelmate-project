@@ -69,7 +69,8 @@ optionally `RAPIDAPI_KEY` and the `TRAIN_API_*` settings — see the comments in
 `.env.example`). Never commit `.env` (it's already in `.gitignore`), and keep
 keys out of the frontend: only this server reads them.
 
-Run it:
+Run it from this folder, e.g. in VS Code's integrated terminal (**Terminal →
+New Terminal**, then `cd travelmate-backend`):
 
 ```bash
 npm start
@@ -77,11 +78,13 @@ npm start
 
 Then open **http://localhost:3000/** in your browser. The server serves the
 app (`TravelMate.html` from the project root) there, and the app calls the
-API on the same address.
+API on the same address. Nothing opens a browser for you. To stop the server,
+press Ctrl+C in that terminal.
 
-- **Don't open `TravelMate.html` as a file** (double-clicking it, `file://`):
-  the browser then sends `Origin: null`, which the API refuses, so live
-  searches can't work.
+- **Opened as a file** (double-clicking `TravelMate.html`, `file://`), the
+  page goes straight to http://localhost:3000/: from a file the browser sends
+  `Origin: null`, which the API refuses, so live searches only work there.
+  Start the server first, or the browser says it can't connect.
 - The server listens on `127.0.0.1` only, so other devices on your network
   can't reach it. For a deployment, set `HOST` (e.g. `0.0.0.0`) **and**
   `ALLOWED_ORIGINS` to the site's own origin — see `.env.example`.

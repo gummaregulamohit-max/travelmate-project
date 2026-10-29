@@ -656,19 +656,15 @@ test('TRAVELMATE_TODAY is ignored, with a startup warning, outside NODE_ENV=test
   }
 });
 
-test('TravelMate.html opened as a file says where to open it instead; served over http it says nothing', () => {
-  const block = /<script>\s*\/\/ TravelMate is served by its backend[\s\S]*?<\/script>/.exec(HTML);
-  assert.ok(block, 'file:// notice script not found');
+test('TravelMate.html opened as a file goes to http://localhost:3000/ instead; served over http it stays put', () => {
+  const block = /<script>\s*\/\/ Opened as a file[\s\S]*?<\/script>/.exec(HTML);
+  assert.ok(block, 'file:// redirect script not found');
   const code = block[0].replace(/^<script>|<\/script>$/g, '');
   const run = (protocol) => {
-    const added = [];
-    const element = () => ({ style: {}, setAttribute() {}, set innerHTML(v) { this.html = v; } });
-    // getElementById: the second notice, above the results (see frontend.status.test.js)
-    vm.runInNewContext(code, { location: { protocol }, document: { createElement: element, body: { prepend: (el) => added.push(el) }, getElementById: () => ({ before() {} }) } });
-    return added;
+    const went = [];
+    vm.runInNewContext(code, { location: { protocol, replace: (url) => went.push(url) } });
+    return went;
   };
-  const shown = run('file:');
-  assert.equal(shown.length, 1);
-  assert.match(shown[0].html, /Open TravelMate at <a href="http:\/\/localhost:3000\/"/);
+  assert.deepEqual(run('file:'), ['http://localhost:3000/']);
   assert.deepEqual(run('http:'), []);
 });

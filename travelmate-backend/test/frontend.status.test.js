@@ -637,37 +637,24 @@ test('summary: only the latest search of a mode marks it done — never a search
   assert.deepEqual(events, ['loading flights', 'loading trains', 'done flights', 'done trains']);
 });
 
-// --- opened as a file: the warning sits right above the results -------------
+// --- opened as a file: straight to the live app --------------------------------
 
-// The page's last script (the file:// notices), run against a minimal DOM.
-function runFileNoticeScript(protocol) {
-  const script = /<script>\s*(\/\/ TravelMate is served by its backend[\s\S]*?)<\/script>/.exec(HTML);
-  assert.ok(script, 'the file:// notice script is in TravelMate.html');
-  const placed = [];
-  const createElement = () => ({ className: '', style: {}, attributes: {}, innerHTML: '', setAttribute(name, value) { this.attributes[name] = value; } });
-  const document = {
-    createElement,
-    body: { prepend: (el) => placed.push({ where: 'top of the page', el }) },
-    getElementById: (id) => ({ before: (el) => placed.push({ where: `before #${id}`, el }) })
-  };
-  vm.runInContext(script[1], vm.createContext({ document, location: { protocol } }));
-  return placed;
+// The redirect at the top of <head>, run with the page opened over `protocol`.
+function runFileRedirect(protocol) {
+  const script = /<script>\s*(\/\/ Opened as a file[\s\S]*?)<\/script>/.exec(HTML);
+  assert.ok(script, 'the file:// redirect script is in TravelMate.html');
+  const went = [];
+  vm.runInContext(script[1], vm.createContext({ location: { protocol, replace: (url) => went.push(url) } }));
+  return went;
 }
 
-test('opened as a file: a warning right above the results says the results are demo data and live searches need http://localhost:3000/', () => {
-  const placed = runFileNoticeScript('file:');
-  assert.deepEqual(placed.map((p) => p.where), ['top of the page', 'before #uniSummary']);
-  const { el } = placed[1];
-  assert.equal(el.className, 'tm-file-results-notice');
-  assert.equal(el.attributes.role, 'note');
-  assert.match(el.innerHTML, /<strong>Live searches are unavailable — this page was opened as a file\.<\/strong>/);
-  assert.match(el.innerHTML, /Flights can't be searched/);
-  assert.match(el.innerHTML, /every bus and train result shown here is sample \(demo\) data, not comparable with the real results at <a href="http:\/\/localhost:3000\/"/);
-  assert.match(el.innerHTML, /Live searches need the backend: start it with <code>npm start<\/code> and open that address\./);
-  assert.match(el.innerHTML, /<a class="select-flight-btn" href="http:\/\/localhost:3000\/"[^>]*>Open live TravelMate<\/a>/, 'a button opens the live app');
-  assert.match(el.style.cssText, /background:#fff4e5/, 'styled like the banner at the top');
-
-  assert.deepEqual(runFileNoticeScript('http:'), [], 'served by the backend, neither notice is shown');
+test('opened as a file: the page goes straight to the live app at http://localhost:3000/ — no warning banners, no demo page', () => {
+  assert.deepEqual(runFileRedirect('file:'), ['http://localhost:3000/']);
+  assert.deepEqual(runFileRedirect('http:'), [], 'served by the backend, it stays put');
+  assert.ok(HTML.indexOf('// Opened as a file') < HTML.indexOf('<style>'), 'it runs in <head>, before the page is styled or built');
+  for (const removed of ['tm-file-notice', 'tm-file-results-notice', 'Live searches are unavailable']) {
+    assert.ok(!HTML.includes(removed), `no file:// banner left ("${removed}")`);
+  }
 });
 
 // A failed search's message, from the page's real showFlightErrorState() /
@@ -699,4 +686,19 @@ test('opened as a file: a failed flight or train search offers the live app, not
     assert.match(asHttp, new RegExp(`<button type="button" class="select-flight-btn" onclick="${retry.replace(/[()]/g, '\\$&')}">Retry Search</button>`), `${fn}: served by the backend, Retry stays`);
     assert.doesNotMatch(asHttp, /Open live TravelMate/, fn);
   }
+});
+
+// --- served by the backend: an ordinary page ----------------------------------
+
+test('TravelMate.html is an ordinary page served by the backend: no file:// frame, check-again or "Opening TravelMate..." screen; its only navigation is the file:// redirect, and only Book Now opens a tab', () => {
+  for (const removed of ['tm-live-frame', 'travelmate:ready', 'tm-file-connecting', 'tm-file-opening', 'tm-file-live', 'Opening TravelMate', 'visibilitychange', 'Start TravelMate']) {
+    assert.ok(!HTML.includes(removed), `nothing left of "${removed}"`);
+  }
+  assert.doesNotMatch(HTML, /createElement\(['"]iframe['"]\)/, 'no frame is created');
+  const navigations = HTML.match(/(^|[^.\w])location\.(replace|assign|reload)\(|(^|[^.\w])location\.href\s*=[^=]/gm) || [];
+  assert.equal(navigations.length, 1, 'the page navigates itself only once: the file:// redirect');
+  assert.match(HTML, /if \(location\.protocol === 'file:'\) location\.replace\('http:\/\/localhost:3000\/'\);/);
+  const opens = (src) => (src.match(/window\.open\(/g) || []).length;
+  assert.ok(opens(HTML) > 0);
+  assert.equal(opens(declaration(/async function flightBookNow\(/)), opens(HTML), 'tabs are opened only by Book Now (the airline\'s booking page)');
 });
