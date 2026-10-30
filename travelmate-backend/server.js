@@ -16,6 +16,7 @@ const healthRouter = require('./src/routes/health.routes');
 const { warmUp: warmUpLocations } = require('./src/services/locations.service');
 const { errorHandler, redactUrl } = require('./src/middleware/errorHandler');
 const { apiOriginGuard, corsOptions } = require('./src/middleware/originPolicy');
+const { ensureLocalKey } = require('./src/utils/localKey');
 const { travelDateOverrideIgnored } = require('./src/utils/requestNormalizers');
 
 const app = express();
@@ -55,6 +56,16 @@ app.get(['/', '/TravelMate.html'], (req, res, next) => {
   });
 });
 
+// travelmate-local-key.js, next to TravelMate.html, holds the key that lets
+// the page opened as a file use the API (src/utils/localKey.js). The page asks
+// for it by that name however it is opened; served from here it gets an empty
+// script — never the key, which any website could read with a <script> tag.
+const LOCAL_KEY_FILE = process.env.TRAVELMATE_LOCAL_KEY_FILE || path.join(__dirname, '..', 'travelmate-local-key.js');
+const localKeyReady = Boolean(ensureLocalKey(LOCAL_KEY_FILE));
+app.get('/travelmate-local-key.js', (req, res) => {
+  res.type('js').send('// Served by the backend, TravelMate needs no key.\n');
+});
+
 // public/index.html — an older copy of the frontend, kept on disk for reference
 // — is deliberately not served: nothing links to it, and it predates the
 // escaping of provider data in the cards. /index.html is a plain 404.
@@ -81,6 +92,7 @@ const LOOPBACK = HOST === 'localhost' || HOST === '::1' || /^127\./.test(HOST);
 app.listen(PORT, HOST, () => {
   console.log(`TravelMate backend listening on http://${HOST.includes(':') ? `[${HOST}]` : HOST}:${PORT}`);
   console.log(`➡️  Open the TravelMate app at http://localhost:${PORT}/`);
+  if (localKeyReady) console.log('✅ TravelMate.html opened as a file can use the API too (key in travelmate-local-key.js).');
   if (travelDateOverrideIgnored()) console.warn('⚠️  TRAVELMATE_TODAY is set but ignored: it only applies when NODE_ENV=test. Travel dates are checked against the real date.');
   if (!LOOPBACK) console.warn(`⚠️  HOST=${HOST}: the server is reachable from other devices on the network. Set ALLOWED_ORIGINS for the site that should use it.`);
   // Index the city / town / village directory up front so the first autocomplete

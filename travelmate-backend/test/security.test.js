@@ -416,6 +416,7 @@ test('trains: a past date is a 400 for search and seat refresh, before any IRCTC
 
 const { startServer } = require('./helpers/server');
 const { parseOriginList, apiOriginGuard, defaultOrigins } = require(path.join(ROOT, 'src/middleware/originPolicy'));
+const { ensureLocalKey, KEY_PATTERN } = require(path.join(ROOT, 'src/utils/localKey'));
 const net = require('node:net');
 const os = require('node:os');
 
@@ -525,12 +526,58 @@ test('origins: the app\'s own localhost origins are answered, with CORS headers 
   assert.equal((await api('/api/health', { 'Sec-Fetch-Site': 'same-origin' })).status, 200, 'the app\'s own same-origin requests');
 });
 
-test('origins: Origin null (a page opened as a file, a sandboxed frame) is refused with a 403', async () => {
-  const res = await api('/api/flights/search?origin=BLR&destination=DEL&departureDate=2026-11-22', { Origin: 'null' });
-  assert.equal(res.status, 403);
-  assert.equal(res.body.error.reason, 'origin_not_allowed');
-  assert.match(res.body.error.message, /Open it at http:\/\/localhost:\d+\//);
-  assert.equal(res.headers.get('access-control-allow-origin'), null);
+test('origins: Origin null (a page opened as a file, a sandboxed frame) without the local key is refused with a 403', async () => {
+  const search = '/api/flights/search?origin=BLR&destination=DEL&departureDate=2026-11-22';
+  for (const headers of [{ Origin: 'null' }, { Origin: 'null', 'X-TravelMate-Key': 'f'.repeat(64) }, { Origin: 'null', 'X-TravelMate-Key': '' }]) {
+    const res = await api(search, headers);
+    assert.equal(res.status, 403, JSON.stringify(headers));
+    assert.equal(res.body.error.reason, 'origin_not_allowed');
+    assert.match(res.body.error.message, /needs the key the backend writes next to it \(travelmate-local-key\.js\)/);
+    assert.equal(res.headers.get('access-control-allow-origin'), null);
+  }
+});
+
+test('origins: TravelMate.html opened as a file — Origin null with the local key — reaches the routes, with CORS headers for it', async () => {
+  const key = KEY_PATTERN.exec(fs.readFileSync(app.localKeyFile, 'utf8'))[1];
+  const health = await api('/api/health', { Origin: 'null', 'X-TravelMate-Key': key });
+  assert.equal(health.status, 200);
+  assert.equal(health.headers.get('access-control-allow-origin'), 'null', 'the page may read the answer');
+  const search = await api('/api/flights/search?origin=BLR&destination=DEL&departureDate=2026-11-22', { Origin: 'null', 'X-TravelMate-Key': key });
+  assert.equal(search.status, 503, 'a search reaches the route (no SerpApi key in tests)');
+  assert.equal(search.body.error.reason, 'not_configured');
+
+  // The browser asks first, naming the header but never sending its value
+  const preflight = await api('/api/flights/search', { Origin: 'null', 'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'x-travelmate-key' }, { method: 'OPTIONS' });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), 'null');
+  assert.match(preflight.headers.get('access-control-allow-headers'), /x-travelmate-key/i);
+});
+
+test('opened as a file: the server writes the local key at startup, keeps it across restarts, and never serves it', async () => {
+  const keyFile = path.join(os.tmpdir(), `travelmate-test-key-restart-${process.pid}.js`);
+  fs.rmSync(keyFile, { force: true });
+  try {
+    const first = await startServer({ env: { TRAVELMATE_LOCAL_KEY_FILE: keyFile } });
+    await first.stop();
+    const source = fs.readFileSync(keyFile, 'utf8');
+    assert.match(KEY_PATTERN.exec(source)[1], /^[0-9a-f]{64}$/);
+    assert.match(first.output(), /TravelMate\.html opened as a file can use the API too/);
+    const second = await startServer({ env: { TRAVELMATE_LOCAL_KEY_FILE: keyFile } });
+    await second.stop();
+    assert.equal(fs.readFileSync(keyFile, 'utf8'), source, 'the same key after a restart');
+  } finally {
+    fs.rmSync(keyFile, { force: true });
+  }
+
+  // By default next to TravelMate.html, where the page loads it from — and never committed
+  assert.match(fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8'), /process\.env\.TRAVELMATE_LOCAL_KEY_FILE \|\| path\.join\(__dirname, '\.\.', 'travelmate-local-key\.js'\)/);
+  assert.match(fs.readFileSync(path.join(ROOT, '..', '.gitignore'), 'utf8'), /^travelmate-local-key\.js$/m);
+
+  // Over http the same address is an empty script: a <script> tag on any website can't read the key
+  const served = await fetch(`${app.baseUrl}/travelmate-local-key.js`);
+  assert.equal(served.status, 200);
+  assert.match(served.headers.get('content-type'), /javascript/);
+  assert.doesNotMatch(await served.text(), /TM_LOCAL_KEY|[0-9a-f]{64}/);
 });
 
 test('origins: another website is refused — by Origin, by Sec-Fetch-Site, and on preflight', async () => {
@@ -582,6 +629,9 @@ test('origins: the guard, case by case — without Origin, only the app itself, 
   const warnings = [];
   t.mock.method(console, 'warn', (...args) => warnings.push(args.join(' ')));
   const [ownLocalhost, own127] = defaultOrigins();
+  const keyFile = path.join(os.tmpdir(), `travelmate-test-key-guard-${process.pid}.js`);
+  const key = ensureLocalKey(keyFile);
+  fs.rmSync(keyFile, { force: true });
   const decide = (headers) => {
     const lower = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
     const req = { method: 'GET', originalUrl: '/api/flights/search?origin=BLR', get: (name) => lower[name.toLowerCase()] };
@@ -600,8 +650,11 @@ test('origins: the guard, case by case — without Origin, only the app itself, 
     [{ Origin: ownLocalhost, 'Sec-Fetch-Site': 'same-origin' }, 'pass', 'the app, with an Origin header'],
     [{ Origin: own127, 'Sec-Fetch-Site': 'cross-site' }, 'pass', 'the app opened at 127.0.0.1, calling localhost'],
     [{ Origin: 'http://localhost:5500', 'Sec-Fetch-Site': 'same-site' }, 403, 'another localhost port, not listed'],
-    [{ Origin: 'null' }, 403, 'a page opened as a file'],
-    [{ Origin: 'null', 'Sec-Fetch-Site': 'same-origin' }, 403, 'Origin null, whatever else is sent']
+    [{ Origin: 'null' }, 403, 'a page opened as a file, without the key'],
+    [{ Origin: 'null', 'Sec-Fetch-Site': 'same-origin' }, 403, 'Origin null without the key, whatever else is sent'],
+    [{ Origin: 'null', 'X-TravelMate-Key': key }, 'pass', 'TravelMate.html opened as a file, with the key'],
+    [{ Origin: 'null', 'X-TravelMate-Key': `${key.slice(0, -1)}${key.endsWith('0') ? '1' : '0'}` }, 403, 'a wrong key'],
+    [{ Origin: 'https://evil.example', 'X-TravelMate-Key': key }, 403, 'the key only ever admits Origin null']
   ];
   for (const [headers, expected, why] of cases) assert.equal(decide(headers), expected, `${why}: ${JSON.stringify(headers)}`);
   assert.ok(warnings.some((w) => w.includes('Refused GET /api/flights/search?origin=BLR from a "same-site" request without an Origin header.')));
@@ -656,15 +709,7 @@ test('TRAVELMATE_TODAY is ignored, with a startup warning, outside NODE_ENV=test
   }
 });
 
-test('TravelMate.html opened as a file goes to http://localhost:3000/ instead; served over http it stays put', () => {
-  const block = /<script>\s*\/\/ Opened as a file[\s\S]*?<\/script>/.exec(HTML);
-  assert.ok(block, 'file:// redirect script not found');
-  const code = block[0].replace(/^<script>|<\/script>$/g, '');
-  const run = (protocol) => {
-    const went = [];
-    vm.runInNewContext(code, { location: { protocol, replace: (url) => went.push(url) } });
-    return went;
-  };
-  assert.deepEqual(run('file:'), ['http://localhost:3000/']);
-  assert.deepEqual(run('http:'), []);
+test('TravelMate.html opened as a file stays a file page: no redirect, and the key goes only to the TravelMate API', () => {
+  assert.doesNotMatch(HTML, /location\.replace\(/);
+  assert.match(HTML, /input\.startsWith\(`\$\{TM_API_BASE\}\/api\/`\)\s*\? tmFetch\(input, \{ \.\.\.init, headers: \{ \.\.\.init\.headers, 'X-TravelMate-Key': window\.TM_LOCAL_KEY \} \}\)/);
 });

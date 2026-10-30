@@ -82,9 +82,14 @@ API on the same address. Nothing opens a browser for you. To stop the server,
 press Ctrl+C in that terminal.
 
 - **Opened as a file** (double-clicking `TravelMate.html`, `file://`), the
-  page goes straight to http://localhost:3000/: from a file the browser sends
-  `Origin: null`, which the API refuses, so live searches only work there.
-  Start the server first, or the browser says it can't connect.
+  page calls the API at http://localhost:3000 too. The browser then sends
+  `Origin: null` — as do sandboxed frames on any website — so the API accepts
+  it only with the key the server keeps in `travelmate-local-key.js`, next to
+  `TravelMate.html` (written at the first start and reused after; git-ignored;
+  keep it private, and delete it to get a new key). The page loads that file
+  from disk and sends the key with every API call; over http the same address
+  is an empty script. Start the server before opening the page, or reload the
+  page after starting it.
 - The server listens on `127.0.0.1` only, so other devices on your network
   can't reach it. For a deployment, set `HOST` (e.g. `0.0.0.0`) **and**
   `ALLOWED_ORIGINS` to the site's own origin — see `.env.example`.

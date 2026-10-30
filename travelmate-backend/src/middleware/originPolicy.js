@@ -8,9 +8,13 @@
 // ALLOWED_ORIGINS (comma-separated, exact origins such as
 // "http://localhost:5500") replaces that list, e.g. for a deployed site.
 // "Origin: null" — sent by pages opened as files (file://) and by sandboxed
-// frames on any site — is never allowed, even if listed.
+// frames on any site — is never allowed by the list, even if listed. A page
+// opened as a file passes only with the local key (src/utils/localKey.js).
 
 const { redactUrl } = require('./errorHandler');
+const { localKeyMatches } = require('../utils/localKey');
+
+const LOCAL_KEY_HEADER = 'x-travelmate-key';
 
 const warned = new Set();
 function warnOnce(message) {
@@ -61,6 +65,15 @@ function isAllowedOrigin(origin) {
   return typeof origin === 'string' && allowedOrigins().has(origin);
 }
 
+// TravelMate.html opened as a file: "Origin: null" with the local key. A CORS
+// preflight carries only the key header's name, never its value, so it passes
+// to cors(), which answers it; the request itself still needs the key.
+function isLocalFilePage(req) {
+  if (req.get('origin') !== 'null') return false;
+  const preflight = req.method === 'OPTIONS' && req.get('access-control-request-method') !== undefined;
+  return preflight || localKeyMatches(req.get(LOCAL_KEY_HEADER));
+}
+
 // A request without an Origin header passes only when the browser marks it as
 // the app's own ("same-origin") or as started by the user ("none": a typed URL
 // or a bookmark), or when it has no Sec-Fetch-Site at all (curl, scripts, the
@@ -72,14 +85,14 @@ const NO_ORIGIN_ALLOWED_SITES = new Set(['', 'same-origin', 'none']);
 
 /**
  * For /api: a 403 for a request a browser made from a page that isn't
- * allowed — an Origin header not on the list (including "null"), or no Origin
- * from anywhere but the app itself or the user (see NO_ORIGIN_ALLOWED_SITES).
- * Runs before the routes and their rate limits.
+ * allowed — an Origin header not on the list ("null" without the local key),
+ * or no Origin from anywhere but the app itself or the user (see
+ * NO_ORIGIN_ALLOWED_SITES). Runs before the routes and their rate limits.
  */
 function apiOriginGuard(req, res, next) {
   const origin = req.get('origin');
   const site = String(req.get('sec-fetch-site') || '').toLowerCase();
-  if (origin !== undefined ? isAllowedOrigin(origin) : NO_ORIGIN_ALLOWED_SITES.has(site)) return next();
+  if (origin !== undefined ? isAllowedOrigin(origin) || isLocalFilePage(req) : NO_ORIGIN_ALLOWED_SITES.has(site)) return next();
 
   const from = origin !== undefined
     ? `origin ${JSON.stringify(String(origin).slice(0, 100))}`
@@ -87,16 +100,18 @@ function apiOriginGuard(req, res, next) {
   console.warn(`[origin] Refused ${req.method} ${redactUrl(req.originalUrl)} from ${from}.`);
   return res.status(403).json({
     error: {
-      message: `This API only answers the TravelMate app. Open it at http://localhost:${port()}/ (not as a file).`,
+      message: origin === 'null'
+        ? 'Opened as a file, TravelMate needs the key the backend writes next to it (travelmate-local-key.js). Start the backend (npm start), then reload the page.'
+        : `This API only answers the TravelMate app. Open it at http://localhost:${port()}/.`,
       status: 403,
       reason: 'origin_not_allowed'
     }
   });
 }
 
-/** Options for the cors package: CORS headers only for allowed origins. */
-const corsOptions = {
-  origin: (origin, callback) => callback(null, isAllowedOrigin(origin))
-};
+/** Options for the cors package, per request: CORS headers only for allowed origins and the local file page. */
+function corsOptions(req, callback) {
+  callback(null, { origin: isAllowedOrigin(req.get('origin')) || isLocalFilePage(req) });
+}
 
-module.exports = { apiOriginGuard, corsOptions, allowedOrigins, isAllowedOrigin, parseOriginList, defaultOrigins, NO_ORIGIN_ALLOWED_SITES };
+module.exports = { apiOriginGuard, corsOptions, allowedOrigins, isAllowedOrigin, isLocalFilePage, parseOriginList, defaultOrigins, NO_ORIGIN_ALLOWED_SITES, LOCAL_KEY_HEADER };

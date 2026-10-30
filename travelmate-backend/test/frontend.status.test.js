@@ -455,9 +455,9 @@ function loadTrainSearch(fetchLiveTrains, { extra = {}, trainRoutes = {}, from =
   return { api: context.api, calls };
 }
 
-test('trains: a failed search is marked failed and explained — opened as a file, it names the real reason', async () => {
-  const reason = /This page was opened as a file, so it can't use the TravelMate API\. Open http:\/\/localhost:3000\/ instead\./;
-  // A route with no bundled demo trains; the browser hides the 403 behind "Failed to fetch"
+test('trains: a failed search is marked failed and explained — opened as a file, it says to start the backend and reload', async () => {
+  const reason = /The TravelMate backend isn't answering this page\. Start it \(npm start in travelmate-backend\), then reload this page\./;
+  // A route with no bundled demo trains; the browser hides a refused or unanswered request behind "Failed to fetch"
   const asFile = loadTrainSearch(async () => { throw new TypeError('Failed to fetch'); }, { extra: { location: { protocol: 'file:' } } });
   await asFile.api.searchTrains();
   assert.deepEqual({ ...asFile.api.state() }, { failed: true, count: 0, demo: true });
@@ -495,14 +495,14 @@ test('trains: opened as a file on a route with bundled trains, they are shown as
   assert.deepEqual(calls, ['results']);
 });
 
-// --- opened as a file: every message names the real reason ---------------------
+// --- opened as a file: every message says what to do ----------------------------
 
-test('opened as a file: flights, trains and buses say the page was opened as a file — not that the backend is down', async () => {
+test('opened as a file: when the backend doesn\'t answer, flights, trains and buses say to start it and reload the page', async () => {
   const asFile = { location: { protocol: 'file:' } };
   const asHttp = { location: { protocol: 'http:' } };
-  const reason = /This page was opened as a file, so it can't use the TravelMate API\. Open http:\/\/localhost:3000\/ instead\./;
+  const reason = /The TravelMate backend isn't answering this page\. Start it \(npm start in travelmate-backend\), then reload this page\./;
 
-  // The browser hides the 403 behind a generic network error
+  // The browser hides a refused or unanswered request behind a generic network error
   const flightsFile = loadFlightSearch(async () => { throw new TypeError('Failed to fetch'); }, asFile);
   await flightsFile.api.searchFlights();
   assert.equal(flightsFile.calls.length, 1);
@@ -637,23 +637,44 @@ test('summary: only the latest search of a mode marks it done — never a search
   assert.deepEqual(events, ['loading flights', 'loading trains', 'done flights', 'done trains']);
 });
 
-// --- opened as a file: straight to the live app --------------------------------
+// --- opened as a file: the page calls the backend itself, with the local key ---
 
-// The redirect at the top of <head>, run with the page opened over `protocol`.
-function runFileRedirect(protocol) {
-  const script = /<script>\s*(\/\/ Opened as a file[\s\S]*?)<\/script>/.exec(HTML);
-  assert.ok(script, 'the file:// redirect script is in TravelMate.html');
-  const went = [];
-  vm.runInContext(script[1], vm.createContext({ location: { protocol, replace: (url) => went.push(url) } }));
-  return went;
+// The page's fetch, after its key step runs with the page opened over
+// `protocol` and travelmate-local-key.js giving it `key` (or nothing).
+function fileFetch(protocol, key) {
+  const sent = [];
+  const window = { fetch: (url, init) => { sent.push({ url, init }); return Promise.resolve('answer'); } };
+  if (key !== undefined) window.TM_LOCAL_KEY = key;
+  const original = window.fetch;
+  vm.runInContext([
+    /const TM_API_BASE = .+;/.exec(HTML)[0],
+    /const TM_OPENED_AS_FILE = .+;/.exec(HTML)[0],
+    declaration(/if \(TM_OPENED_AS_FILE && typeof window/)
+  ].join('\n'), vm.createContext({ window, location: { protocol } }));
+  return { fetch: window.fetch, sent, wrapped: window.fetch !== original };
 }
 
-test('opened as a file: the page goes straight to the live app at http://localhost:3000/ — no warning banners, no demo page', () => {
-  assert.deepEqual(runFileRedirect('file:'), ['http://localhost:3000/']);
-  assert.deepEqual(runFileRedirect('http:'), [], 'served by the backend, it stays put');
-  assert.ok(HTML.indexOf('// Opened as a file') < HTML.indexOf('<style>'), 'it runs in <head>, before the page is styled or built');
-  for (const removed of ['tm-file-notice', 'tm-file-results-notice', 'Live searches are unavailable']) {
-    assert.ok(!HTML.includes(removed), `no file:// banner left ("${removed}")`);
+test('opened as a file: the page loads the local key in <head> and sends it with every API call to http://localhost:3000 — no banners, no redirect', async () => {
+  assert.ok(HTML.indexOf('<script src="travelmate-local-key.js"></script>') > 0, 'the key file is loaded');
+  assert.ok(HTML.indexOf('<script src="travelmate-local-key.js"></script>') < HTML.indexOf('<style>'), 'in <head>, before any API call can be made');
+
+  const key = 'a'.repeat(64);
+  const asFile = fileFetch('file:', key);
+  const signal = AbortSignal.timeout(1000);
+  assert.equal(await asFile.fetch('http://localhost:3000/api/trains/search?from=SBC', { signal }), 'answer');
+  assert.deepEqual(asFile.sent[0].url, 'http://localhost:3000/api/trains/search?from=SBC');
+  assert.equal(asFile.sent[0].init.signal, signal, 'the caller\'s timeout is kept');
+  assert.deepEqual({ ...asFile.sent[0].init.headers }, { 'X-TravelMate-Key': key });
+  await asFile.fetch('http://localhost:3000/api/locations/search?q=Bengaluru');
+  assert.deepEqual({ ...asFile.sent[1].init.headers }, { 'X-TravelMate-Key': key }, 'a call without options gets the key too');
+  await asFile.fetch('https://www.google.com/flights', {});
+  assert.deepEqual(asFile.sent[2].init, {}, 'nothing but the TravelMate API ever gets the key');
+
+  assert.equal(fileFetch('http:', key).wrapped, false, 'served by the backend, fetch is left alone');
+  assert.equal(fileFetch('file:').wrapped, false, 'without a key file (backend never started), fetch is left alone');
+
+  for (const removed of ['tm-file-notice', 'tm-file-results-notice', 'Live searches are unavailable', 'Open live TravelMate']) {
+    assert.ok(!HTML.includes(removed), `no file:// banner or detour left ("${removed}")`);
   }
 });
 
@@ -668,36 +689,31 @@ function renderFailure(fn, protocol) {
   });
   vm.runInContext([
     /const TM_OPENED_AS_FILE = .+;/.exec(HTML)[0],
-    declaration(/function tmRetryOrOpenHtml\(/),
+    declaration(/function tmRetryHtml\(/),
     declaration(new RegExp(`function ${fn}\\(`)),
     `${fn}('BLR', 'HYD', 'The reason.');`
   ].join('\n'), context);
   return list.innerHTML;
 }
 
-test('opened as a file: a failed flight or train search offers the live app, not a retry that would be refused again', () => {
+test('a failed flight or train search offers Retry Search — opened as a file too, since that page reaches the backend itself', () => {
   for (const [fn, retry] of [['showFlightErrorState', 'searchFlights()'], ['showTrainErrorState', 'searchTrains()']]) {
-    const asFile = renderFailure(fn, 'file:');
-    assert.match(asFile, /The reason\./, `${fn}: the reason is still shown`);
-    assert.match(asFile, /<a class="select-flight-btn" href="http:\/\/localhost:3000\/"[^>]*>Open live TravelMate<\/a>/, fn);
-    assert.doesNotMatch(asFile, /Retry Search/, `${fn}: no retry from a file — it can only be refused again`);
-
-    const asHttp = renderFailure(fn, 'http:');
-    assert.match(asHttp, new RegExp(`<button type="button" class="select-flight-btn" onclick="${retry.replace(/[()]/g, '\\$&')}">Retry Search</button>`), `${fn}: served by the backend, Retry stays`);
-    assert.doesNotMatch(asHttp, /Open live TravelMate/, fn);
+    for (const protocol of ['file:', 'http:']) {
+      const shown = renderFailure(fn, protocol);
+      assert.match(shown, /The reason\./, `${fn} (${protocol}): the reason is shown`);
+      assert.match(shown, new RegExp(`<button type="button" class="select-flight-btn" onclick="${retry.replace(/[()]/g, '\\$&')}">Retry Search</button>`), `${fn} (${protocol})`);
+    }
   }
 });
 
 // --- served by the backend: an ordinary page ----------------------------------
 
-test('TravelMate.html is an ordinary page served by the backend: no file:// frame, check-again or "Opening TravelMate..." screen; its only navigation is the file:// redirect, and only Book Now opens a tab', () => {
+test('TravelMate.html is an ordinary page, served or opened as a file: no file:// frame, redirect, check-again or "Opening TravelMate..." screen; only Book Now opens a tab', () => {
   for (const removed of ['tm-live-frame', 'travelmate:ready', 'tm-file-connecting', 'tm-file-opening', 'tm-file-live', 'Opening TravelMate', 'visibilitychange', 'Start TravelMate']) {
     assert.ok(!HTML.includes(removed), `nothing left of "${removed}"`);
   }
   assert.doesNotMatch(HTML, /createElement\(['"]iframe['"]\)/, 'no frame is created');
-  const navigations = HTML.match(/(^|[^.\w])location\.(replace|assign|reload)\(|(^|[^.\w])location\.href\s*=[^=]/gm) || [];
-  assert.equal(navigations.length, 1, 'the page navigates itself only once: the file:// redirect');
-  assert.match(HTML, /if \(location\.protocol === 'file:'\) location\.replace\('http:\/\/localhost:3000\/'\);/);
+  assert.doesNotMatch(HTML, /(^|[^.\w])location\.(replace|assign|reload)\(|(^|[^.\w])location\.href\s*=[^=]/m, 'the page never navigates itself');
   const opens = (src) => (src.match(/window\.open\(/g) || []).length;
   assert.ok(opens(HTML) > 0);
   assert.equal(opens(declaration(/async function flightBookNow\(/)), opens(HTML), 'tabs are opened only by Book Now (the airline\'s booking page)');

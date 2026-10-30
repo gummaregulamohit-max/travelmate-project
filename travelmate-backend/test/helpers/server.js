@@ -22,12 +22,14 @@ function freePort() {
 // placeholder values, e.g. to check a key never shows up in a response.
 async function startServer({ env = {} } = {}) {
   const port = await freePort();
+  const localKeyFile = env.TRAVELMATE_LOCAL_KEY_FILE || path.join(os.tmpdir(), `travelmate-test-key-${port}.js`);
   const child = spawn(process.execPath, ['server.js'], {
     cwd: ROOT,
-    // Live IRCTC requests off and a throwaway usage file, whatever .env says.
+    // Live IRCTC requests off and throwaway usage and local key files, whatever .env says.
     env: {
       ...process.env, PORT: String(port), SERPAPI_KEY: '', RAPIDAPI_KEY: '', AMADEUS_CLIENT_ID: '', AMADEUS_CLIENT_SECRET: '',
       TRAIN_API_REQUEST_BUDGET: '0', TRAIN_API_USAGE_FILE: path.join(os.tmpdir(), `travelmate-test-usage-${port}.json`),
+      TRAVELMATE_LOCAL_KEY_FILE: localKeyFile,
       // Fixed test dates stay valid travel dates (see requestNormalizers.js).
       NODE_ENV: 'test', TRAVELMATE_TODAY: '2026-10-20', ...env
     },
@@ -48,6 +50,8 @@ async function startServer({ env = {} } = {}) {
   const baseUrl = `http://127.0.0.1:${port}`;
   return {
     baseUrl,
+    // Where this server keeps the key for TravelMate.html opened as a file.
+    localKeyFile,
     // Everything server.js has printed so far (stdout and stderr).
     output: () => output,
     async request(urlPath, init) {
