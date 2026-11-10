@@ -164,8 +164,8 @@ test('trains: cached only when every station pair came from cache', () => {
   assert.match(api.trainDataStatusHtml(st), />Cached</);
 });
 
-test('trains: no backend means "Demo data"', () => {
-  assert.match(load().trainDataStatusHtml({ demo: true }), /data-status-demo[^>]*>Demo data</);
+test('trains: no backend shows no "Demo data" chip', () => {
+  assert.equal(load().trainDataStatusHtml({ demo: true }), '');
   assert.match(HTML, /lastTrainDataStatus = live \? trainDataStatus\(settled\.filter\(s => s\.ok\)\.map\(s => s\.meta\)\) : \{ demo: true \};/);
   assert.match(HTML, /trains on this route\$\{trainDataStatusHtml\(lastTrainDataStatus\)\}/);
 });
@@ -227,13 +227,10 @@ test('buses: an unreachable backend still gives demo data, marked offline', asyn
   assert.deepEqual({ ...body.meta }, { source: 'demo', backend: 'offline' });
 });
 
-test('buses: the status chip says demo data and why', () => {
+test('buses: no "Demo data" status chip is shown', () => {
   const api = load();
-  const simulated = api.busDataStatusHtml({ source: 'demo', backend: 'simulated' });
-  assert.match(simulated, /data-status-demo[^>]*>Demo data</);
-  assert.match(simulated, /No live bus inventory provider is connected/);
-  assert.match(simulated, /not live inventory/);
-  assert.match(api.busDataStatusHtml({ source: 'demo', backend: 'offline' }), /backend could not be reached/);
+  assert.equal(api.busDataStatusHtml({ source: 'demo', backend: 'simulated' }), '');
+  assert.equal(api.busDataStatusHtml({ source: 'demo', backend: 'offline' }), '');
   assert.match(HTML, /buses on this route\$\{busDataStatusHtml\(busDataMeta\)\}/);
   assert.match(HTML, /busDataMeta = \(body && body\.meta\) \|\| null;/);
 });
@@ -371,7 +368,7 @@ test('summary card: a failed flight search says "Search failed"; only a real emp
   assert.match(renderSummaryCard({ status: 'loading', failed: true }), /Searching…/, 'a search in progress is not shown as failed');
 });
 
-test('summary cards: demo buses and trains say "Demo data" and never get the Cheapest / Fastest badge', () => {
+test('summary cards: demo buses and trains show no "Demo data" chip and never get the Cheapest / Fastest badge', () => {
   const badge = /class="uni-sum-badge(?: fast)?">|uni-sum-card best|uni-sum-card fast/;
   // Opened as a file: sample buses and trains, and the flight search failed
   const asFile = renderSummary({
@@ -380,7 +377,7 @@ test('summary cards: demo buses and trains say "Demo data" and never get the Che
     flights: { count: 0 }
   }, { flightsFailed: true });
   for (const label of ['🚌 Buses', '🚂 Trains']) {
-    assert.match(cardFor(asFile, label), /data-status-demo[^>]*>Demo data</, label);
+    assert.doesNotMatch(cardFor(asFile, label), /Demo data/, label);
   }
   assert.doesNotMatch(asFile, badge, 'sample fares are not ranked');
 
@@ -392,7 +389,7 @@ test('summary cards: demo buses and trains say "Demo data" and never get the Che
     flights: { count: 19, fares: [5070], fastest: 65 }
   });
   const buses = cardFor(served, '🚌 Buses');
-  assert.match(buses, />Demo data</);
+  assert.doesNotMatch(buses, /Demo data/);
   assert.match(buses, /from ₹150/, 'the demo fare is still shown');
   assert.doesNotMatch(buses, badge);
   assert.match(cardFor(served, '🚂 Trains'), /uni-sum-badge">Cheapest</);
@@ -497,7 +494,7 @@ test('trains: opened as a file on a route with bundled trains, they are shown as
 
 // --- opened as a file: every message says what to do ----------------------------
 
-test('opened as a file: when the backend doesn\'t answer, flights, trains and buses say to start it and reload the page', async () => {
+test('opened as a file: when the backend doesn\'t answer, flights say to start it and reload the page', async () => {
   const asFile = { location: { protocol: 'file:' } };
   const asHttp = { location: { protocol: 'http:' } };
   const reason = /The TravelMate backend isn't answering this page\. Start it \(npm start in travelmate-backend\), then reload this page\./;
@@ -511,16 +508,6 @@ test('opened as a file: when the backend doesn\'t answer, flights, trains and bu
   const flightsHttp = loadFlightSearch(async () => { throw new Error('Live flight prices could not be retrieved right now.'); }, asHttp);
   await flightsHttp.api.searchFlights();
   assert.deepEqual(flightsHttp.calls, ['error: Live flight prices could not be retrieved right now.'], 'over http the server\'s own reason is kept');
-
-  const file = load(asFile), http = load(asHttp);
-  assert.match(file.trainDataStatusHtml({ demo: true }), reason);
-  assert.match(file.trainDataStatusHtml({ demo: true }), /sample trains, not real search results/);
-  assert.doesNotMatch(file.trainDataStatusHtml({ demo: true }), /could not be reached/);
-  assert.match(http.trainDataStatusHtml({ demo: true }), /The TravelMate backend could not be reached\. These are sample trains/);
-  assert.match(file.busDataStatusHtml({ source: 'demo', backend: 'offline' }), reason);
-  assert.match(http.busDataStatusHtml({ source: 'demo', backend: 'offline' }), /The TravelMate backend could not be reached\./);
-  // Simulated buses over http keep their own explanation either way
-  assert.match(http.busDataStatusHtml({ source: 'demo', backend: 'simulated' }), /No live bus inventory provider is connected/);
 });
 
 // --- overlapping searches: the summary only ever shows the latest search -----

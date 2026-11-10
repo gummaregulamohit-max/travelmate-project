@@ -45,13 +45,13 @@ function stationLabel(code) {
 // Bengaluru and Hyderabad/Secunderabad (like several other Indian metros)
 // each have multiple real terminals that IRCTC schedules trains against
 // independently — a search for exactly SBC->KCG misses real trains that run
-// out of YPR, SMVB, SC, or HYB instead. When a search's endpoints fall in two
+// out of YPR, SMVB, SC, HYB or CHZ instead. When a search's endpoints fall in two
 // different clusters below, we aggregate across every terminal combination so
 // the rider sees all the real options for their city pair, not just the one
 // exact station pair they happened to pick.
 const CITY_CLUSTERS = [
   { city: 'Bengaluru', codes: ['SBC', 'YPR', 'SMVB'] },
-  { city: 'Hyderabad/Secunderabad', codes: ['KCG', 'SC', 'HYB'] }
+  { city: 'Hyderabad/Secunderabad', codes: ['KCG', 'SC', 'HYB', 'CHZ'] }
 ];
 
 function clusterFor(code) {

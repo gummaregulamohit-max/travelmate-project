@@ -57,7 +57,7 @@ const TYPE_RANK = { City: 0, Town: 1, Village: 2 };
 // (Yelahanka, Hadapsar, New Delhi), so they are tied to their city here.
 const MAJOR_CITY_STATIONS = {
   bengaluru: ['SBC', 'YPR', 'SMVB', 'YNK'],
-  hyderabad: ['SC', 'HYB', 'KCG'],
+  hyderabad: ['SC', 'HYB', 'KCG', 'CHZ'],
   delhi: ['NDLS', 'DLI', 'NZM', 'ANVT'],
   mumbai: ['CSMT', 'MMCT', 'BDTS', 'LTT'],
   kolkata: ['HWH', 'SDAH', 'KOAA', 'SHM'],

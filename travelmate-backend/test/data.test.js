@@ -21,7 +21,7 @@ const SNAPSHOT = {
   // +1: Shivamogga Airport (RQY). With an airport, Shivamogga also takes in
   // the "Shimoga Bidare" (BEI) station, so one town entry merges into it.
   airports: 4009,
-  places: { places: 162513, hidden: 3587, cities: 5822, towns: 7698, villages: 148993 }
+  places: { places: 162512, hidden: 3587, cities: 5822, towns: 7697, villages: 148993 }
 };
 
 const readJson = (file) => JSON.parse(fs.readFileSync(path.join(DATA, file), 'utf8'));
