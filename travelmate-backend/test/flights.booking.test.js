@@ -66,6 +66,27 @@ test('separate-ticket offers are counted, not listed with half a price', () => {
   assert.ok(out.options.every((o) => o.bookWith !== 'Kiwi.com'));
 });
 
+test('an airline offer with a booking link but no price is kept (Alliance Air), without a made-up price', () => {
+  // As SerpApi answered for Alliance Air 9I 817 BLR–HYD: the airline's own
+  // Google redirect, no fare.
+  const body = { booking_options: [{ together: {
+    book_with: 'Alliance Air', airline: true, marketed_as: ['9I 817'],
+    booking_request: { url: 'https://www.google.com/travel/clk/f', post_data: 'u=FIXTURE_9I' }
+  } }] };
+  const out = mapBookingOptions(body, ['Alliance Air']);
+  assert.equal(out.unsupportedCount, 0);
+  assert.deepEqual(out.options.map((o) => [o.bookWith, o.price, o.isAirline, o.postData]), [['Alliance Air', null, true, 'u=FIXTURE_9I']]);
+  assert.equal(out.airlineOption.bookWith, 'Alliance Air');
+  assert.equal(out.cheapestOption, null);
+
+  // Priced offers still come first, and a priceless one is never "cheapest"
+  const mixed = clone(BOOKING);
+  mixed.booking_options.push({ together: { book_with: 'Some Agent', booking_request: { url: 'https://www.google.com/travel/clk/f', post_data: 'u=X' } } });
+  const m = mapBookingOptions(mixed, ['IndiGo', 'Qatar Airways']);
+  assert.equal(m.options.at(-1).bookWith, 'Some Agent');
+  assert.equal(m.cheapestOption.bookWith, 'MakeMyTrip');
+});
+
 test('no booking options means none are made up', () => {
   for (const body of [{}, null, { booking_options: [] }, { booking_options: [null, { together: { book_with: 'X' } }] }]) {
     const out = mapBookingOptions(body, ['Qatar Airways']);

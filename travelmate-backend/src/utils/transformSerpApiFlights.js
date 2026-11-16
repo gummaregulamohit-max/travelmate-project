@@ -236,6 +236,7 @@ function parsePrice(raw) {
  * its name is one of the itinerary's airlines.
  *
  * Each option: { bookWith, isAirline, price, currency, url, postData, ... }.
+ * `price` is null when Google gives a booking link but no fare (Alliance Air).
  * Only one-ticket offers (`together`) are listed; separate-ticket offers are
  * counted as unsupported rather than shown with a price for half the trip.
  *
@@ -254,10 +255,12 @@ function mapBookingOptions(serpApiJson, itineraryAirlines = []) {
   for (const entry of raw) {
     const t = entry.together;
     const price = parsePrice(t?.price);
-    if (!t || !t.book_with || price === null) { unsupportedCount++; continue; }
-    const req = t.booking_request || {};
+    const req = t?.booking_request || {};
     // Only Google's own click-through endpoint is passed on as a link.
     const url = typeof req.url === 'string' && /^https:\/\/www\.google\.[a-z.]+\//.test(req.url) ? req.url : null;
+    // Some airlines (Alliance Air, Star Air…) come with a booking link but no
+    // price. The link still opens the airline on this flight, so keep it.
+    if (!t || !t.book_with || (price === null && !url)) { unsupportedCount++; continue; }
     options.push({
       bookWith: String(t.book_with),
       isAirline: t.airline === true || airlineNames.has(lower(t.book_with)),
@@ -273,9 +276,12 @@ function mapBookingOptions(serpApiJson, itineraryAirlines = []) {
   }
 
   // Airline first (that's the fare the rider asked to see), then cheapest.
-  options.sort((a, b) => (a.isAirline === b.isAirline ? a.price - b.price : a.isAirline ? -1 : 1));
+  // Offers without a price go last within their group.
+  const priceOf = (o) => (o.price === null ? Infinity : o.price);
+  options.sort((a, b) => (a.isAirline === b.isAirline ? priceOf(a) - priceOf(b) : a.isAirline ? -1 : 1));
   const airlineOption = options.find((o) => o.isAirline) || null;
-  const cheapestOption = options.reduce((best, o) => (!best || o.price < best.price ? o : best), null);
+  const cheapestOption = options.filter((o) => o.price !== null)
+    .reduce((best, o) => (!best || o.price < best.price ? o : best), null);
   return { options, airlineOption, cheapestOption, unsupportedCount, currency };
 }
 
