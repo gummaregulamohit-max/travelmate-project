@@ -7097,9 +7097,19 @@
   // link (that takes a live SerpApi lookup, often 10–30 seconds). It says
   // what's happening, shows it's still working, and offers the airline's
   // site straight away so nobody is left on a blank page.
-  function flightBookingTabHtml(airline, fallbackUrl) {
+  // `pickFlight` ({ numbers, times }) is the flight to choose there: most
+  // airlines' links (Air India Express, Alliance Air…) open on the day's list
+  // of flights, not on one flight — Google Flights' own link does the same.
+  function flightBookingTabHtml(airline, fallbackUrl, pickFlight) {
     const name = escapeHtml(airline);
     const href = /^https:\/\//.test(fallbackUrl || '') ? escapeAttr(fallbackUrl) : '';
+    const pick = pickFlight && pickFlight.numbers ? `
+  <div class="pick">
+    <p class="pick-h">Choose this flight on ${name}'s page</p>
+    <p class="pick-f">${escapeHtml(pickFlight.numbers)}</p>
+    ${pickFlight.times ? `<p class="pick-t">${escapeHtml(pickFlight.times)}</p>` : ''}
+    <p>${name} lists every flight for the day, so look for this one.</p>
+  </div>` : '';
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Opening ${name} · TravelMate</title>
 <style>
@@ -7112,6 +7122,10 @@
   h1 { font-size: 1.2rem; margin: 0 0 8px; }
   p { margin: 0 0 6px; color: #4a5a61; font-size: .92rem; }
   a { display: inline-block; margin-top: 18px; color: #1a5f7a; font-weight: 600; }
+  .pick { margin: 20px 0 4px; padding: 16px; border: 2px solid #e74c3c; border-radius: 8px; background: #fff6f5; }
+  .pick .pick-h { font-weight: 700; color: #c0392b; text-transform: uppercase; font-size: .8rem; letter-spacing: .04em; }
+  .pick .pick-f { font-size: 1.6rem; font-weight: 800; color: #1f2d33; margin: 4px 0 2px; }
+  .pick .pick-t { font-size: 1rem; font-weight: 600; color: #1f2d33; }
 </style></head><body>
 <header>Travel<span>Mate</span></header>
 <main>
@@ -7119,8 +7133,27 @@
   <h1>Opening ${name}'s booking page…</h1>
   <p>Getting the live booking link for your flight. This can take up to 30 seconds.</p>
   <p>${name} will open on its search results for your route and date.</p>
+  ${pick}
   ${href ? `<a href="${href}">Don't want to wait? Go to ${name}'s website</a>` : ''}
 </main></body></html>`;
+  }
+
+  // Airlines whose booking link (via Google) opens on the chosen flight itself
+  // (goindigo.in/…/flight-select.html?flightNumber=6784). Every other airline's
+  // link opens on the day's list of flights for the route.
+  const AIRLINE_OPENS_ON_FLIGHT = new Set(['6E']);
+  const FLIGHT_PICK_NOTE_MS = 5000;
+
+  // "IX 2051" and "2:50 PM BLR → 4:15 PM HYD" for the Book Now tab.
+  function flightPickInfo(f) {
+    const nums = (Array.isArray(f.segments) && f.segments.length ? f.segments.map(s => s.flightNumber) : [f.flightNumber])
+      .map(n => String(n || '').trim().replace(/^([A-Z0-9]{2})[\s-]?(\d+)$/i, (m, c, d) => c.toUpperCase() + ' ' + d))
+      .filter(Boolean);
+    if (!nums.length) return null;
+    const t = (hhmm) => (hhmm ? formatTime12hr(hhmm) : '');
+    const from = f.origin ? ' ' + f.origin : '', to = f.destination ? ' ' + f.destination : '';
+    const times = f.departureTime ? `${t(f.departureTime)}${from} → ${t(f.arrivalTime)}${to}`.trim() : '';
+    return { numbers: nums.join(' + '), times };
   }
 
   async function flightBookNow(index, btn) {
@@ -7136,11 +7169,18 @@
     const sNow = flightSearchForm();
     if (!token && (!legs.length || (sNow.roundTrip && sNow.returnDate))) { window.open(fallback, '_blank', 'noopener'); return; }
 
+    // Which flight to choose on the airline's page. IndiGo's link opens on the
+    // flight itself; other airlines open on the day's list, so the tab names
+    // the flight and stays up long enough to read it.
+    const preselects = AIRLINE_OPENS_ON_FLIGHT.has(site.code);
+    const pickFlight = preselects ? null : flightPickInfo(f);
+    const shownAt = Date.now();
+
     // Open the tab now, inside the click, so pop-up blockers allow it.
     const target = 'tmBook' + Date.now();
     const w = window.open('', target);
     try {
-      if (w) { w.document.open(); w.document.write(flightBookingTabHtml(site.name, fallback)); w.document.close(); }
+      if (w) { w.document.open(); w.document.write(flightBookingTabHtml(site.name, fallback, pickFlight)); w.document.close(); }
     } catch (e) {}
     const label = btn.textContent;
     btn.classList.add('is-busy'); btn.disabled = true; btn.textContent = 'Opening…';
@@ -7162,6 +7202,9 @@
       const pick = body && Array.isArray(body.options) ? pickBookingOption(body.options, f) : null;
       if (res.ok && body) flightApplyAirlinePrice(f, pick && pick.isAirline ? pick : body.airlineOption, btn);
       if (!res.ok || !pick) throw new Error('No booking option');
+      // Leave the "choose this flight" note up for a few seconds at least.
+      const wait = pickFlight && w && !w.closed ? FLIGHT_PICK_NOTE_MS - (Date.now() - shownAt) : 0;
+      if (wait > 0) await new Promise(r => setTimeout(r, wait));
       if (pick.postData) flightPostRedirect(pick.url, pick.postData, w ? target : '_blank');
       else if (w && !w.closed) w.location.href = pick.url;
       else window.open(pick.url, '_blank', 'noopener');

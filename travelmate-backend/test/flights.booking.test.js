@@ -298,6 +298,13 @@ test('TravelMate: the Book Now tab says what is happening and offers the airline
   assert.match(html, /<a href="https:\/\/www\.airindia\.com\/">Don't want to wait\? Go to Air India's website<\/a>/);
   assert.doesNotMatch(html, /with your flight selected/);
   // Only an https link is offered, and names can't inject markup
+  // Airlines that open on the day's list: the tab names the flight to choose
+  const picked = context.api.flightBookingTabHtml('Air India Express', 'https://www.airindiaexpress.com/', { numbers: 'IX 2051', times: '2:50 PM BLR → 4:15 PM HYD' });
+  assert.match(picked, /Choose this flight on Air India Express's page/);
+  assert.match(picked, /<p class="pick-f">IX 2051<\/p>/);
+  assert.match(picked, /2:50 PM BLR → 4:15 PM HYD/);
+  assert.doesNotMatch(html, /Choose this flight/);
+  assert.doesNotMatch(context.api.flightBookingTabHtml('X', '', { numbers: '<i>IX 1</i>' }), /<i>/);
   assert.doesNotMatch(context.api.flightBookingTabHtml('X', 'javascript:alert(1)'), /<a /);
   assert.doesNotMatch(context.api.flightBookingTabHtml('<b>Air</b>', ''), /<b>/);
 });
